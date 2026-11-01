@@ -77,7 +77,7 @@ test("database migrations and access boundaries", { timeout: 90_000 }, async t =
 
     await scenario("all application tables enable RLS", null, {}, async () => {
       const { rows } = await client.query("select relname, relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'");
-      assert.equal(rows.length, 11);
+      assert.equal(rows.length, 13);
       assert.ok(rows.every(row => row.relrowsecurity));
     });
     await scenario("web session sees only its own rows", "authenticated", web, async () => {

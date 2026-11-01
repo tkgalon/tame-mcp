@@ -12,6 +12,8 @@ const resolve = async (client, owner = alice, oauthClient = clientId, session = 
 test("MCP connections are bound to provider sessions and revocable before JWT expiry", { timeout: 90_000 }, async t => {
   await processingDatabase(async ({ client }) => {
     await client.query("insert into auth.oauth_clients (id) values ($1),($2)", [clientId, otherClient]);
+    await client.query("insert into public.mcp_oauth_clients (client_id,resource_url) values ($1,'http://127.0.0.1:3001/mcp')", [clientId]);
+    await client.query("insert into public.mcp_oauth_consents (owner_id,client_id) values ($1,$2)", [alice, clientId]);
     await client.query("insert into auth.sessions (id,user_id,oauth_client_id) values ($1,$2,$3)", [sessionId, alice, clientId]);
     await client.query("insert into public.connection_grants (id,owner_id,client_id,provider_session_id,permissions) values ($1,$2,$3,$4,array['read_examples','read_examples','read_profiles'])", [grantId, alice, clientId, sessionId]);
     await scenario(t, client, "backend resolves only the exact active owner/client/session tuple", async () => {
