@@ -172,6 +172,31 @@ async function run() {
       const result = await sdk.callTool({ name, arguments: args });
       check(result.isError && JSON.parse(result.content[0].text).error === code, `Expected ${code} from ${name}.`);
     }
+    const guide = await call("get_profile_authoring_guide");
+    check(guide.schemaVersion === 1 && guide.createDraftInput.properties.payload, "Authoring guide did not expose the profile contract.");
+    const draftInput = {
+      draftId: randomUUID(), payload: {
+        schemaVersion: 1, name: "OAuth fixture narrative", description: "Private test proposal", purpose: "Explain observations before actions",
+        usageConditions: { whenToUse: ["Narrative writeups"], whenNotToUse: ["Question-by-question submissions"] },
+        rules: [{ id: "observations", category: "style", instruction: "Present observations before actions", strength: "preferred", origin: "inferred" }],
+        evidence: [{ ruleId: "observations", documentId, sectionId: firstRead.sections[0].id, extractionVersion: 1, excerpt: "Text 0" }],
+      }, preview: "Illustration: [observation], then [action]",
+    };
+    const draft = await call("create_profile_draft", draftInput);
+    check(draft.status === "pending_review" && draft.draftHash.length === 64, "Draft was not saved as a reviewable proposal.");
+    check(JSON.stringify(await call("create_profile_draft", draftInput)) === JSON.stringify(draft), "Draft retry was not idempotent.");
+    check(JSON.stringify(await call("get_profile_draft", { draftId: draft.id })) === JSON.stringify(draft), "Stored draft could not be retrieved.");
+    await expectToolError("create_profile_draft", { ...draftInput, payload: { ...draftInput.payload, name: "Changed" } }, "draft_conflict");
+    const invalidDraft = structuredClone(draftInput);
+    invalidDraft.draftId = randomUUID(); invalidDraft.payload.evidence[0].excerpt = "Fabricated excerpt";
+    await expectToolError("create_profile_draft", invalidDraft, "invalid_evidence");
+    const foreignDraft = randomUUID();
+    check(!(await admin.from("profile_drafts").insert({ id: foreignDraft, owner_id: otherUserId, payload: draftInput.payload })).error, "Foreign draft fixture failed.");
+    await expectToolError("get_profile_draft", { draftId: foreignDraft }, "not_found");
+    const evidenceCount = await admin.from("profile_sources").select("id", { count: "exact", head: true }).eq("draft_id", draft.id);
+    const publishedCount = await admin.from("profile_versions").select("id", { count: "exact", head: true }).eq("owner_id", userId);
+    check(!evidenceCount.error && evidenceCount.count === 1 && !publishedCount.error && publishedCount.count === 0, "Draft sources or non-publication guarantees failed.");
+    console.info("PASS profile authoring guide, draft creation/retrieval, evidence checks, idempotent retry and draft isolation");
     await expectToolError("list_documents", { collectionId: otherCollection.data.id }, "not_found");
     await expectToolError("read_document", { documentId: foreignDocumentId }, "not_found");
     await expectToolError("read_document", { documentId, version: 2 }, "extraction_changed");
@@ -180,6 +205,7 @@ async function run() {
     await expectToolError("list_collections", {}, "permission_denied");
     await expectToolError("list_documents", { collectionId: collection.data.id }, "permission_denied");
     await expectToolError("read_document", { documentId }, "permission_denied");
+    await expectToolError("create_profile_draft", { ...draftInput, draftId: randomUUID() }, "permission_denied");
     check(!(await admin.from("connection_grants").update({ permissions: ["read_examples", "read_profiles", "write_profiles"] }).eq("id", info.structuredContent.connectionId).eq("owner_id", userId)).error, "Permission fixture restore failed.");
     console.info("PASS OAuth example tools, collection/document/section pagination, two-account isolation and live permission changes");
     for (const token of [webToken, issued.data.id_token]) {
