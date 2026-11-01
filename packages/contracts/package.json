@@ -1,0 +1,21 @@
+{
+  "name": "@tame/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "dev": "tsc --build --watch",
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit --incremental false --composite false"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  }
+}
