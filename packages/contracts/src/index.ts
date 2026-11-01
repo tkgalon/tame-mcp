@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export * from "./extraction.js";
+
 /** Reports process liveness without checking storage, OAuth, or MCP tools. */
 export const healthResponseSchema = z.strictObject({
   status: z.literal("ok"),
