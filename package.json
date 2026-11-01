@@ -26,7 +26,8 @@
     "test:worker": "pnpm --filter @tame/worker test",
     "test:worker:integration": "pnpm --filter @tame/worker build && node scripts/worker.integration.mjs",
     "test:mcp": "pnpm --filter @tame/mcp test",
-    "test:oauth": "pnpm --filter @tame/mcp build && node scripts/oauth.integration.mjs"
+    "test:oauth": "pnpm --filter @tame/mcp build && node scripts/oauth.integration.mjs",
+    "oauth:setup:codex": "node scripts/setup-local-codex.mjs"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
