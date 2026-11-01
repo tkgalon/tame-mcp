@@ -9,15 +9,18 @@ if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
   throw new Error("MCP_PORT must be an integer between 1 and 65535.");
 }
 
-// Local-only until the authenticated transport is in place.
-const server = createApp().listen(port, "127.0.0.1", () => {
+const host = process.env["MCP_HOST"] ?? "127.0.0.1";
+if (!["127.0.0.1", "::1", "0.0.0.0"].includes(host)) throw new Error("MCP_HOST must be a supported bind address.");
+const server = createApp().listen(port, host, () => {
   console.info(`TAME service listening on http://127.0.0.1:${port}`);
 });
 
-server.on("error", (error) => {
-  console.error(error.message);
+server.on("error", () => {
+  console.error("TAME MCP server could not start.");
   process.exitCode = 1;
 });
+server.requestTimeout = 15_000;
+server.headersTimeout = 10_000;
 
 function shutdown() {
   const deadline = setTimeout(() => {
