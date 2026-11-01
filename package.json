@@ -24,7 +24,8 @@
     "test:upload": "pnpm --filter @tame/worker build && node scripts/upload.integration.mjs",
     "test:parsers": "pnpm --filter @tame/contracts test && pnpm --filter @tame/parsers test",
     "test:worker": "pnpm --filter @tame/worker test",
-    "test:worker:integration": "pnpm --filter @tame/worker build && node scripts/worker.integration.mjs"
+    "test:worker:integration": "pnpm --filter @tame/worker build && node scripts/worker.integration.mjs",
+    "test:mcp": "pnpm --filter @tame/mcp test"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
