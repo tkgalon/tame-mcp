@@ -41,7 +41,7 @@ async function run() {
   const provider = await startOAuthTestProvider(site);
   const admin = createClient(provider.url, provider.secretKey, options);
   const owner = createClient(provider.url, provider.publicKey, options);
-  let userId, clientId, web, mcpServer, sdk;
+  let userId, otherUserId, clientId, web, mcpServer, sdk;
   let webExited = false;
   async function endpoint(path, init = {}) {
     const response = await fetch(site + path, {
@@ -137,6 +137,51 @@ async function run() {
     await sdk.connect(new StreamableHTTPClientTransport(new URL(resource), { requestInit: { headers: { Authorization: `Bearer ${issued.data.access_token}` } } }));
     const info = await sdk.callTool({ name: "get_connection_info", arguments: {} });
     check(info.structuredContent.ownerId === userId, "MCP returned another account.");
+    const otherUser = await admin.auth.admin.createUser({ email: `tame-oauth-other-${randomUUID()}@example.invalid`, password: `Test-${randomUUID()}`, email_confirm: true });
+    check(!otherUser.error && otherUser.data.user, "Second fixture account creation failed.");
+    otherUserId = otherUser.data.user.id;
+    const otherCollection = await admin.from("collections").insert({ owner_id: otherUserId, name: "Other private collection" }).select("id").single();
+    check(!otherCollection.error && otherCollection.data, "Second fixture collection creation failed.");
+    check(!(await admin.from("collections").insert(Array.from({ length: 21 }, (_, index) => ({ owner_id: userId, name: `Pagination ${index}` })))).error, "Collection pagination fixtures failed.");
+    const documentId = randomUUID(), foreignDocumentId = randomUUID();
+    const documents = Array.from({ length: 21 }, (_, index) => {
+      const id = index === 0 ? documentId : randomUUID();
+      return { id, owner_id: userId, collection_id: collection.data.id, name: `Example ${index}.md`, media_type: "text/markdown", size_bytes: 30, status: index === 0 ? "ready" : "uploading", storage_path: `${userId}/${id}/original` };
+    });
+    documents.push({ id: foreignDocumentId, owner_id: otherUserId, collection_id: otherCollection.data.id, name: "Foreign private example.md", media_type: "text/markdown", size_bytes: 6, status: "ready", storage_path: `${otherUserId}/${foreignDocumentId}/original` });
+    check(!(await admin.from("documents").insert(documents)).error, "Document fixtures failed.");
+    const sectionRows = Array.from({ length: 5 }, (_, ordinal) => ({ owner_id: userId, document_id: documentId, extraction_version: 1, ordinal, content: `Text ${ordinal}`, source_start: ordinal * 6, source_end: ordinal * 6 + 6 }));
+    sectionRows.push({ owner_id: otherUserId, document_id: foreignDocumentId, extraction_version: 1, ordinal: 0, content: "secret", source_start: 0, source_end: 6 });
+    check(!(await admin.from("document_sections").insert(sectionRows)).error, "Section fixtures failed.");
+    const call = async (name, args = {}) => {
+      const result = await sdk.callTool({ name, arguments: args });
+      check(!result.isError, `Example tool ${name} failed.`);
+      return result.structuredContent;
+    };
+    const firstCollections = await call("list_collections"), lastCollections = await call("list_collections", { page: firstCollections.nextPage });
+    check(firstCollections.items.length === 20 && lastCollections.items.length === 2 && lastCollections.nextPage === null, "Collection pagination failed.");
+    check(![...firstCollections.items, ...lastCollections.items].some(item => item.id === otherCollection.data.id), "Another account's collection leaked.");
+    const firstDocuments = await call("list_documents", { collectionId: collection.data.id });
+    const lastDocuments = await call("list_documents", { collectionId: collection.data.id, page: firstDocuments.nextPage });
+    check(firstDocuments.items.length === 20 && lastDocuments.items.length === 1 && lastDocuments.nextPage === null, "Document pagination failed.");
+    const firstRead = await call("read_document", { documentId });
+    const lastRead = await call("read_document", { documentId, version: firstRead.extractionVersion, after: firstRead.nextAfter });
+    check(JSON.stringify([...firstRead.sections, ...lastRead.sections].map(section => section.ordinal)) === "[0,1,2,3,4]" && lastRead.nextAfter === null, "Section pagination failed.");
+    check(!JSON.stringify(firstRead).includes("owner_id") && !JSON.stringify(firstRead).includes("storage_path"), "Private storage metadata leaked.");
+    async function expectToolError(name, args, code) {
+      const result = await sdk.callTool({ name, arguments: args });
+      check(result.isError && JSON.parse(result.content[0].text).error === code, `Expected ${code} from ${name}.`);
+    }
+    await expectToolError("list_documents", { collectionId: otherCollection.data.id }, "not_found");
+    await expectToolError("read_document", { documentId: foreignDocumentId }, "not_found");
+    await expectToolError("read_document", { documentId, version: 2 }, "extraction_changed");
+    await expectToolError("read_document", { documentId: documents[1].id }, "extraction_not_ready");
+    check(!(await admin.from("connection_grants").update({ permissions: ["read_profiles"] }).eq("id", info.structuredContent.connectionId).eq("owner_id", userId)).error, "Permission fixture update failed.");
+    await expectToolError("list_collections", {}, "permission_denied");
+    await expectToolError("list_documents", { collectionId: collection.data.id }, "permission_denied");
+    await expectToolError("read_document", { documentId }, "permission_denied");
+    check(!(await admin.from("connection_grants").update({ permissions: ["read_examples", "read_profiles", "write_profiles"] }).eq("id", info.structuredContent.connectionId).eq("owner_id", userId)).error, "Permission fixture restore failed.");
+    console.info("PASS OAuth example tools, collection/document/section pagination, two-account isolation and live permission changes");
     for (const token of [webToken, issued.data.id_token]) {
       check(token, "Expected a web token and an ID token.");
       check((await fetch(resource, { method: "POST", headers: { Authorization: `Bearer ${token}` } })).status === 401, "MCP accepted a token that was not an MCP access token.");
@@ -182,6 +227,7 @@ async function run() {
       try { cleanupFailed = Boolean((await admin.auth.admin.oauth.deleteClient(clientId)).error) || cleanupFailed; } catch { cleanupFailed = true; }
     }
     if (userId) { try { cleanupFailed = Boolean((await admin.auth.admin.deleteUser(userId)).error) || cleanupFailed; } catch { cleanupFailed = true; } }
+    if (otherUserId) { try { cleanupFailed = Boolean((await admin.auth.admin.deleteUser(otherUserId)).error) || cleanupFailed; } catch { cleanupFailed = true; } }
     await provider.stop();
     check(!cleanupFailed, "OAuth fixture cleanup failed.");
     console.info("Temporary OAuth provider, client and account cleaned up. Main Auth configuration unchanged.");
