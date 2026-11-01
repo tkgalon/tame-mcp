@@ -6,7 +6,7 @@ import {
 import type { ExtractedSection, ExtractionErrorCode, ExtractionFailure, ExtractionResult, ExtractionWarning } from "@tame/contracts";
 
 export type DecodedDocument = { text: string; contentHash: string; parserVersion: string };
-export type ExtractionBlock = { start: number; end: number; heading: string | null };
+export type ExtractionBlock = { start: number; end: number; heading: string | null; page?: number };
 
 export function extractionFailure(
   base: Pick<DecodedDocument, "contentHash" | "parserVersion">,
@@ -92,7 +92,7 @@ export function buildExtraction(
         if (paragraphCount >= MAX_SECTION_CHARACTERS / 2) end = paragraphBreak;
         else if (lineCount >= MAX_SECTION_CHARACTERS / 2) end = lineBreak;
       }
-      sections.push({ ordinal: sections.length, heading, page: null, content: document.text.slice(start, end), sourceStart: start, sourceEnd: end });
+      sections.push({ ordinal: sections.length, heading, page: block.page ?? null, content: document.text.slice(start, end), sourceStart: start, sourceEnd: end });
       if (sections.length > MAX_EXTRACTION_SECTIONS) return extractionFailure(document, "section_limit_exceeded", warnings);
       start = end;
     }

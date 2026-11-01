@@ -34,3 +34,11 @@ test("hashes and machine-readable failures are validated", () => {
 test("sections cannot contain NUL characters that PostgreSQL text cannot store", () => {
   assert.equal(extractionResultSchema.safeParse({ ...base, status: "ready", sections: [{ ...section, content: "a\0b", sourceEnd: 3 }] }).success, false);
 });
+
+
+test("OCR candidates have no partial sections and require the explicit reason", () => {
+  const result = { ...base, status: "needs_ocr", errorCode: "no_extractable_text" };
+  assert.equal(extractionResultSchema.safeParse(result).success, true);
+  assert.equal(extractionResultSchema.safeParse({ ...result, sections: [section] }).success, false);
+  assert.equal(extractionResultSchema.safeParse({ ...result, errorCode: "invalid_document" }).success, false);
+});

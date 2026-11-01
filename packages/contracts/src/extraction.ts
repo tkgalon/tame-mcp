@@ -12,12 +12,13 @@ function withinCodePointLimit(value: string, limit: number): boolean {
   return true;
 }
 
-export const extractionWarningSchema = z.enum(["section_split", "heading_shortened", "images_not_extracted", "html_preserved"]);
+export const extractionWarningSchema = z.enum(["section_split", "heading_shortened", "images_not_extracted", "html_preserved", "layout_approximate", "pages_without_text", "conversion_warning"]);
 export type ExtractionWarning = z.infer<typeof extractionWarningSchema>;
 
 export const extractionErrorCodeSchema = z.enum([
   "empty_document", "file_too_large", "invalid_utf8", "binary_content", "format_mismatch",
-  "text_limit_exceeded", "section_limit_exceeded", "parser_error",
+  "text_limit_exceeded", "section_limit_exceeded", "parser_error", "invalid_document", "password_required",
+  "archive_limit_exceeded", "page_limit_exceeded", "invalid_text_content", "complexity_limit_exceeded",
 ]);
 export type ExtractionErrorCode = z.infer<typeof extractionErrorCodeSchema>;
 
@@ -70,8 +71,12 @@ export const unsupportedExtractionSchema = z.strictObject({
   ...extractionBase, status: z.literal("unsupported"), errorCode: z.literal("unsupported_media_type"),
 });
 
+export const needsOcrExtractionSchema = z.strictObject({
+  ...extractionBase, status: z.literal("needs_ocr"), errorCode: z.literal("no_extractable_text"),
+});
+
 export const extractionResultSchema = z.discriminatedUnion("status", [
-  readyExtractionSchema, failedExtractionSchema, unsupportedExtractionSchema,
+  readyExtractionSchema, failedExtractionSchema, unsupportedExtractionSchema, needsOcrExtractionSchema,
 ]);
 export type ExtractionResult = z.infer<typeof extractionResultSchema>;
 export type ExtractionFailure = z.infer<typeof failedExtractionSchema>;
