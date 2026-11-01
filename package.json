@@ -20,7 +20,7 @@
     "db:stop": "supabase stop",
     "db:migrate": "supabase migration up --local",
     "db:reset": "supabase db reset --local",
-    "test:db": "node --test --test-concurrency=1 scripts/database.test.mjs",
+    "test:db": "node --test --test-concurrency=1 scripts/*.test.mjs",
     "test:upload": "node scripts/upload.integration.mjs",
     "test:parsers": "pnpm --filter @tame/contracts test && pnpm --filter @tame/parsers test"
   },
