@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireUser } from "../lib/auth/session";
 import { SignOutForm } from "../components/sign-out-form";
 
@@ -9,7 +10,8 @@ export default async function HomePage() {
     <main>
       <h1>TAME-MCP</h1>
       <p>Signed in as {user.email ?? "your account"}.</p>
-      <p>Document collections and task profiles are not available yet.</p>
+      <p><Link href="/collections">Collections</Link></p>
+      <p>Task profiles are not available yet.</p>
       <SignOutForm />
     </main>
   );
