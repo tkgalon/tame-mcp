@@ -9,7 +9,9 @@
       "import": "./dist/*.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "tsc --build --watch",
     "build": "tsc --build",
@@ -18,8 +20,17 @@
   },
   "dependencies": {
     "@tame/contracts": "workspace:*",
+    "fflate": "0.8.3",
+    "mammoth": "1.13.0",
     "mdast-util-to-string": "4.0.0",
+    "parse5": "8.0.1",
+    "pdfjs-dist": "6.4.299",
     "remark-parse": "11.0.0",
-    "unified": "11.0.5"
+    "unified": "11.0.5",
+    "yauzl": "3.4.0"
+  },
+  "devDependencies": {
+    "@types/yauzl": "3.4.0",
+    "pdf-lib": "1.17.1"
   }
 }
