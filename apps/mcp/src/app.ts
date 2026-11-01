@@ -10,13 +10,16 @@ import { createGrantResolver } from "./grants.js";
 import { createMcpServer } from "./server.js";
 import { createExampleRepository } from "./examples.js";
 import type { ExampleRepository } from "./examples.js";
+import { createProfileDraftRepository } from "./profile-drafts.js";
+import type { ProfileDraftRepository } from "./profile-drafts.js";
 
-export function createApp(options: { config?: McpConfig | null; authenticate?: Authenticator; examples?: ExampleRepository } = {}): Express {
+export function createApp(options: { config?: McpConfig | null; authenticate?: Authenticator; examples?: ExampleRepository; drafts?: ProfileDraftRepository } = {}): Express {
   const app = express();
   app.disable("x-powered-by");
   const config = options.config === undefined ? readMcpConfig() : options.config;
   const authenticate = config ? options.authenticate ?? createAuthenticator(config, createGrantResolver(config)) : null;
   const examples = config ? options.examples ?? createExampleRepository(config) : null;
+  const drafts = config ? options.drafts ?? createProfileDraftRepository(config) : null;
   const resource = config ? new URL(config.resourceUrl) : null;
   const metadataUrl = resource ? `${resource.origin}/.well-known/oauth-protected-resource/mcp` : null;
   app.use((_request, response, next) => { response.set("Cache-Control", "no-store"); next(); });
@@ -61,7 +64,7 @@ export function createApp(options: { config?: McpConfig | null; authenticate?: A
     }
   });
   app.post("/mcp", express.json({ limit: "64kb" }), async (request, response) => {
-    const server = createMcpServer(response.locals["principal"] as Principal, examples!);
+    const server = createMcpServer(response.locals["principal"] as Principal, examples!, drafts!);
     const transport = new StreamableHTTPServerTransport({ enableJsonResponse: true });
     response.once("close", () => { void server.close().catch(() => {}); });
     try {

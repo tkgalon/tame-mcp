@@ -50,7 +50,7 @@ test("real MCP SDK client initializes, lists tools, calls a tool, and observes l
       await client.connect(transport);
       assert.equal(client.getServerVersion().name, "tame-mcp");
       const tools = await client.listTools();
-      assert.deepEqual(tools.tools.map(tool => tool.name), ["get_connection_info", "list_collections", "list_documents", "read_document"]);
+      assert.deepEqual(tools.tools.map(tool => tool.name), ["get_connection_info", "list_collections", "list_documents", "read_document", "get_profile_authoring_guide", "create_profile_draft", "get_profile_draft"]);
       const result = await client.callTool({ name: "get_connection_info", arguments: {} });
       assert.deepEqual(result.structuredContent, { ownerId: owner, clientId, connectionId, permissions: ["read_examples"] });
       state.permissions = ["read_profiles"];
