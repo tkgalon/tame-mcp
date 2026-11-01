@@ -6,8 +6,23 @@
 
 body {
   margin: 0;
-  background: #fafaf8;
+  background: #fff;
   color: #191919;
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
 }
+
+main { max-width: 44rem; margin: 2rem auto; padding: 1rem; }
+h1, h2, p, form, ol { margin-block: 0 1rem; }
+h1 { font-size: 1.75rem; font-weight: 700; }
+h2 { font-size: 1.25rem; font-weight: 600; }
+a { color: #174ea6; text-decoration: underline; }
+fieldset { display: grid; gap: 0.75rem; padding: 1rem; border: 1px solid #aaa; }
+legend { padding-inline: 0.25rem; }
+input, button { font: inherit; padding: 0.5rem; border: 1px solid #777; border-radius: 0; }
+input { width: 100%; min-width: 0; }
+button { width: fit-content; cursor: pointer; background: #eee; }
+button:disabled { cursor: wait; opacity: 0.6; }
+code { font-family: monospace; overflow-wrap: anywhere; }
+ol { padding-left: 1.5rem; list-style: decimal; }
+:focus-visible { outline: 2px solid #174ea6; outline-offset: 2px; }
