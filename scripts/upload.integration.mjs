@@ -13,6 +13,9 @@ const webDirectory = process.env.TAME_TEST_WEB_DIR ?? join(repo, "apps/web");
 const require = createRequire(pathToFileURL(join(repo, "apps/web/package.json")));
 const { createClient } = require("@supabase/supabase-js");
 const clientOptions = { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } };
+const workerDirectory = process.env.TAME_TEST_WORKER_DIR ?? join(repo, "apps/worker");
+const { createBackend, claimedJobSchema } = await import(pathToFileURL(join(workerDirectory, "dist/backend.js")).href);
+const { processJob } = await import(pathToFileURL(join(workerDirectory, "dist/runner.js")).href);
 
 function check(condition, message) {
   if (!condition) throw new Error(message);
@@ -150,9 +153,16 @@ async function run() {
 
     await expectResponse(await endpoint(`/api/collections/${collectionId}/documents`, { authenticated: false }), 401, "Anonymous access");
     await login(createdUsers[0], password);
-    const bytes = new TextEncoder().encode("# Temporary CTF example\nIntegration test only.\n");
+    const source = Array.from({ length: 12 }, (_, ordinal) => `# Evidence ${ordinal}\n\nFinding ${ordinal} 😀\n`).join("\n");
+    const bytes = new TextEncoder().encode(source);
     const registered = await expectResponse(await endpoint(`/api/collections/${collectionId}/uploads`, { method: "POST", body: { name: "writeup.md", sizeBytes: bytes.length } }), 201, "Register upload");
     const documentId = registered.document.id;
+    await expectResponse(await endpoint(`/api/documents/${documentId}`, { authenticated: false }), 401, "Anonymous detail access");
+    await expectResponse(await endpoint(`/api/documents/${documentId}/sections`, { authenticated: false }), 401, "Anonymous section access");
+    const pending = await expectResponse(await endpoint(`/api/documents/${documentId}`), 200, "Pending document detail");
+    check(pending.document.status === "uploading" && pending.document.extraction_version === 1, "Pending extraction metadata missing.");
+    check(!("owner_id" in pending.document) && !("storage_path" in pending.document), "Private document fields leaked.");
+    await expectResponse(await endpoint(`/api/documents/${documentId}/sections`), 409, "Pending sections unavailable");
     uploadedPaths.push(`${createdUsers[0].id}/${documentId}/original`);
     const ticket = await expectResponse(await endpoint(`/api/documents/${documentId}/upload-url`, { method: "POST" }), 200, "Sign upload");
     check(ticket.upload.path === uploadedPaths[0] && ticket.upload.contentType === "text/markdown", "Incorrect upload target or type.");
@@ -169,6 +179,30 @@ async function run() {
     await expectResponse(await endpoint(`/api/documents/${documentId}/complete`, { method: "POST", origin: "https://evil.example" }), 403, "Cross-origin request");
     console.info("PASS: registration, signed Storage transfer, confirmation retry, listing, and origin checks");
 
+    // Scope the worker fixture to this document without polling unrelated queued jobs
+    const queued = await admin.from("processing_jobs").select("id").eq("document_id", documentId).eq("status", "queued").single();
+    check(!queued.error && queued.data, "Fixture job not queued. Apply migrations and stop other workers before testing.");
+    const leased = await admin.from("processing_jobs").update({ status: "running", attempts: 1, lease_token: randomUUID(), lease_until: new Date(Date.now() + 120000).toISOString() })
+      .eq("id", queued.data.id).eq("status", "queued").select("*").single();
+    check(!leased.error && leased.data, "Could not lease the document fixture.");
+    const processing = await admin.from("documents").update({ status: "processing" }).eq("id", documentId).eq("status", "uploaded").select("id").single();
+    check(!processing.error && processing.data, "Could not prepare the document fixture.");
+    const claimed = claimedJobSchema.parse({ ...leased.data, storage_path: uploadedPaths[0], media_type: "text/markdown", size_bytes: bytes.length });
+    const backend = createBackend({ supabaseUrl: config.url, secretKey: config.adminKey, pollMs: 2000 });
+    check(await processJob(backend, claimed, new AbortController().signal) === "completed", "Fixture worker processing failed.");
+    const detail = await expectResponse(await endpoint(`/api/documents/${documentId}`), 200, "Ready document detail");
+    check(detail.document.status === "ready" && detail.document.parser_version === "markdown-v1", "Ready extraction metadata missing.");
+    const first = await expectResponse(await endpoint(`/api/documents/${documentId}/sections?version=1`), 200, "First section page");
+    check(first.items.length === 10 && first.nextAfter === 9 && first.extractionVersion === 1, "First section page is not bounded.");
+    const second = await expectResponse(await endpoint(`/api/documents/${documentId}/sections?version=1&after=${first.nextAfter}`), 200, "Second section page");
+    check(second.items.length === 2 && second.nextAfter === null && second.extractionVersion === 1, "Section continuation failed.");
+    const sections = [...first.items, ...second.items];
+    check(sections.map(section => section.content).join("") === source, "Section pagination lost or duplicated source content.");
+    check(sections.every((section, ordinal) => section.ordinal === ordinal && !("owner_id" in section)), "Section identity or private-field filtering failed.");
+    await expectResponse(await endpoint(`/api/documents/${documentId}/sections?version=2`), 409, "Stale extraction version");
+    await expectResponse(await endpoint(`/api/documents/${documentId}/sections?after=9`), 400, "Unversioned continuation");
+    console.info("PASS: worker extraction, private metadata, and versioned section pagination");
+
     const mismatch = await expectResponse(await endpoint(`/api/collections/${collectionId}/uploads`, { method: "POST", body: { name: "mismatch.md", sizeBytes: bytes.length + 1 } }), 201, "Register size mismatch");
     uploadedPaths.push(`${createdUsers[0].id}/${mismatch.document.id}/original`);
     const secondTicket = await expectResponse(await endpoint(`/api/documents/${mismatch.document.id}/upload-url`, { method: "POST" }), 200, "Sign mismatch fixture");
@@ -181,6 +215,8 @@ async function run() {
     await expectResponse(await endpoint(`/api/collections/${collectionId}/documents`), 404, "Cross-owner document list");
     await expectResponse(await endpoint(`/api/documents/${documentId}/upload-url`, { method: "POST" }), 404, "Cross-owner signing");
     await expectResponse(await endpoint(`/api/documents/${documentId}/complete`, { method: "POST" }), 404, "Cross-owner confirmation");
+    await expectResponse(await endpoint(`/api/documents/${documentId}`), 404, "Cross-owner document detail");
+    await expectResponse(await endpoint(`/api/documents/${documentId}/sections?version=1`), 404, "Cross-owner sections");
     console.info("PASS: raw PUT, size mismatch rejection, and second-account isolation");
   } finally {
     if (web && !exited) { web.kill("SIGTERM"); await once(web, "exit"); }
