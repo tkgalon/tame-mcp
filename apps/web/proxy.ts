@@ -8,6 +8,6 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/", "/login", "/signup", "/auth/:path*", "/collections/:path*",
-    "/api/collections/:path*", "/api/documents/:path*",
+    "/oauth/:path*", "/api/collections/:path*", "/api/documents/:path*",
   ],
 };
