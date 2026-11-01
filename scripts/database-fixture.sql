@@ -5,7 +5,14 @@ create role authenticated nologin;
 create role service_role nologin bypassrls;
 
 create schema auth;
-create table auth.users (id uuid primary key);
+create table auth.users (id uuid primary key, banned_until timestamptz);
+create table auth.oauth_clients (id uuid primary key, deleted_at timestamptz);
+create table auth.sessions (
+  id uuid primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  oauth_client_id uuid references auth.oauth_clients(id) on delete cascade,
+  not_after timestamptz
+);
 create function auth.uid() returns uuid language sql stable as $$
   select (nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')::uuid
 $$;
