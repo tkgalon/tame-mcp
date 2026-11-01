@@ -81,10 +81,16 @@ importers:
         version: 5.0.5(@types/node@22.20.5)(vite@8.3.5(@types/node@22.20.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
   apps/worker:
-    devDependencies:
-      tsx:
-        specifier: 4.23.15
-        version: 4.23.15
+    dependencies:
+      '@tame/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@tame/parsers':
+        specifier: workspace:*
+        version: link:../../packages/parsers
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
 
   packages/contracts:
     dependencies:

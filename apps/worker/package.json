@@ -4,12 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "pnpm build && node --env-file-if-exists=.env.local dist/index.js",
     "build": "tsc --build",
-    "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit --incremental false --composite false"
+    "start": "node --env-file-if-exists=.env.local dist/index.js",
+    "typecheck": "tsc --noEmit --incremental false --composite false",
+    "test": "pnpm build && node --test --test-reporter=spec"
   },
-  "devDependencies": {
-    "tsx": "4.23.15"
+  "dependencies": {
+    "@tame/contracts": "workspace:*",
+    "@tame/parsers": "workspace:*",
+    "zod": "4.6.7"
   }
 }
