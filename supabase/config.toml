@@ -55,11 +55,14 @@ enable_confirmations = false
 double_confirm_changes = true
 secure_password_change = true
 
-# Enable after the consent flow and token verification are implemented
 [auth.oauth_server]
-enabled = false
+enabled = true
 authorization_url_path = "/oauth/consent"
 allow_dynamic_registration = false
+
+[auth.hook.custom_access_token]
+enabled = true
+uri = "pg-functions://postgres/public/mcp_access_token_hook"
 
 [edge_runtime]
 enabled = false
