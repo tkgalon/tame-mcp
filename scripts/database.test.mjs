@@ -167,6 +167,58 @@ test("database migrations and access boundaries", { timeout: 90_000 }, async t =
       const { rows } = await client.query("select public,file_size_limit from storage.buckets where id='documents'");
       assert.deepEqual(rows, [{ public: false, file_size_limit: "10485760" }]);
     });
+    await scenario("web upload registration derives owner, path, and MIME type", "authenticated", web, async () => {
+      const { rows } = await client.query("select * from public.register_document_upload($1,$2,$3)", [aliceCollection, "  example.MD  ", 100]);
+      assert.equal(rows[0].owner_id, alice);
+      assert.equal(rows[0].name, "example.MD");
+      assert.equal(rows[0].media_type, "text/markdown");
+      assert.equal(rows[0].status, "uploading");
+      assert.equal(rows[0].storage_path, `${alice}/${rows[0].id}/original`);
+    });
+    await scenario("registration cannot target another owner's collection", "authenticated", web, () => rejects(
+      "select * from public.register_document_upload($1,'example.md',100)", "P0002", [bobCollection],
+    ));
+    await scenario("anonymous callers cannot register uploads", "anon", {}, () => rejects(
+      "select * from public.register_document_upload($1,'example.md',100)", "42501", [aliceCollection],
+    ));
+    await scenario("OAuth tokens cannot register uploads via RPC", "authenticated", oauth, () => rejects(
+      "select * from public.register_document_upload($1,'example.md',100)", "42501", [aliceCollection],
+    ));
+    for (const [name, size] of [["bad.exe", 100], ["../example.md", 100], ["file\n.md", 100], ["example.md", 0], ["example.md", 10485761]]) {
+      await scenario(`registration rejects invalid metadata ${JSON.stringify([name, size])}`, "authenticated", web, () => rejects(
+        "select * from public.register_document_upload($1,$2,$3)", "22023", [aliceCollection, name, size],
+      ));
+    }
+    await scenario("completion cannot read another owner's document", "authenticated", web, () => rejects(
+      "select * from public.complete_document_upload($1)", "P0002", [bobDocument],
+    ));
+    await scenario("OAuth tokens cannot complete uploads via RPC", "authenticated", oauth, () => rejects(
+      "select * from public.complete_document_upload($1)", "42501", [uploadDocument],
+    ));
+    await scenario("completion requires the actual storage object", "authenticated", web, () => rejects(
+      "select * from public.complete_document_upload($1)", "P0002", [uploadDocument],
+    ));
+    for (const metadata of [{ size: 99, mimetype: "text/markdown" }, { size: 100, mimetype: "application/pdf" }, {}]) {
+      await scenario(`completion rejects mismatched metadata ${JSON.stringify(metadata)}`, "authenticated", web, async () => {
+        await client.query("insert into storage.objects (bucket_id,name,metadata) values ('documents',$1,$2)", [uploadPath, metadata]);
+        await rejects("select * from public.complete_document_upload($1)", "22023", [uploadDocument]);
+      });
+    }
+    await scenario("completion records stored uploads and is safe to retry", "authenticated", web, async () => {
+      await client.query("insert into storage.objects (bucket_id,name,metadata) values ('documents',$1,$2)", [uploadPath, { size: 100, mimetype: "text/markdown; charset=utf-8" }]);
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const { rows } = await client.query("select * from public.complete_document_upload($1)", [uploadDocument]);
+        assert.equal(rows[0].id, uploadDocument);
+        assert.equal(rows[0].status, "uploaded");
+      }
+    });
+    await scenario("completion retries do not reset parsing state", null, web, async () => {
+      await client.query("update public.documents set status='processing' where id=$1", [uploadDocument]);
+      await client.query("insert into storage.objects (bucket_id,name,metadata) values ('documents',$1,$2)", [uploadPath, { size: 100, mimetype: "text/markdown" }]);
+      await client.query("set local role authenticated");
+      const { rows } = await client.query("select * from public.complete_document_upload($1)", [uploadDocument]);
+      assert.equal(rows[0].status, "processing");
+    });
   } finally {
     await client.end();
     await cluster.stop();
