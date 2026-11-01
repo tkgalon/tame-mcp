@@ -21,7 +21,8 @@
     "db:migrate": "supabase migration up --local",
     "db:reset": "supabase db reset --local",
     "test:db": "node --test --test-concurrency=1 scripts/database.test.mjs",
-    "test:upload": "node scripts/upload.integration.mjs"
+    "test:upload": "node scripts/upload.integration.mjs",
+    "test:parsers": "pnpm --filter @tame/contracts test && pnpm --filter @tame/parsers test"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

@@ -1,0 +1,25 @@
+{
+  "name": "@tame/parsers",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "import": "./dist/*.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "dev": "tsc --build --watch",
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit --incremental false --composite false",
+    "test": "pnpm build && node --test --test-reporter=spec"
+  },
+  "dependencies": {
+    "@tame/contracts": "workspace:*",
+    "mdast-util-to-string": "4.0.0",
+    "remark-parse": "11.0.0",
+    "unified": "11.0.5"
+  }
+}
