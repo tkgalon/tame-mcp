@@ -48,6 +48,15 @@ describe("authentication actions", () => {
     expect(mocks.signIn).toHaveBeenCalledWith({ email: "user@example.com", password: "example-password" });
   });
 
+  it("continues only to a validated OAuth request after sign-in", async () => {
+    mocks.signIn.mockResolvedValue({ error: null });
+    const data = credentials();
+    data.set("authorizationId", "A".repeat(32));
+    await expect(signInAction(initialAuthState, data)).rejects.toThrow(`REDIRECT:/oauth/consent?authorization_id=${"A".repeat(32)}`);
+    data.set("authorizationId", "https://evil.example");
+    await expect(signInAction(initialAuthState, data)).rejects.toThrow("REDIRECT:/");
+  });
+
   it("keeps provider errors out of UI and never redirects on failure", async () => {
     mocks.signIn.mockResolvedValue({ error: { message: "sensitive upstream details" } });
     const state = await signInAction(initialAuthState, credentials());

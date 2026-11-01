@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "../../lib/supabase/server";
 import { readAuthConfig } from "../../lib/auth/config";
+import { authorizationId, consentPath } from "../../lib/oauth/schema";
 import { readCredentials } from "../../lib/auth/form";
 import type { AuthActionState } from "../../lib/auth/form";
 
@@ -24,7 +25,7 @@ export async function signInAction(_previous: AuthActionState, formData: FormDat
     return unavailable;
   }
   revalidatePath("/", "layout");
-  redirect("/");
+  redirect(consentPath(formData.get("authorizationId")));
 }
 
 export async function signUpAction(_previous: AuthActionState, formData: FormData): Promise<AuthActionState> {
@@ -32,12 +33,14 @@ export async function signUpAction(_previous: AuthActionState, formData: FormDat
   if (!config) return unavailable;
   const credentials = readCredentials(formData, "sign-up");
   if (!credentials) return { status: "error", message: "Enter a valid email address and a password of 8 to 128 characters." };
+  const continuationId = authorizationId(formData.get("authorizationId"));
+  const emailRedirectTo = `${config.siteUrl}/auth/callback${continuationId ? `?authorization_id=${continuationId}` : ""}`;
   let signedIn = false;
   try {
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.auth.signUp({
       ...credentials,
-      options: { emailRedirectTo: `${config.siteUrl}/auth/callback` },
+      options: { emailRedirectTo },
     });
     if (error) return { status: "error", message: "Unable to create an account. Try again later or sign in if you already have one." };
     signedIn = Boolean(data.session);
@@ -46,7 +49,7 @@ export async function signUpAction(_previous: AuthActionState, formData: FormDat
   }
   if (signedIn) {
     revalidatePath("/", "layout");
-    redirect("/");
+    redirect(consentPath(formData.get("authorizationId")));
   }
   return { status: "success", message: "If confirmation is required, check your email to continue. You can sign in once your account is ready." };
 }

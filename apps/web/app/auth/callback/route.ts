@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 import { createSupabaseServerClient } from "../../../lib/supabase/server";
 import { readAuthConfig } from "../../../lib/auth/config";
 
+import { consentPath } from "../../../lib/oauth/schema";
+
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   if (!code || code.length > 2048 || !readAuthConfig()) redirect("/login?error=confirmation");
@@ -14,5 +16,5 @@ export async function GET(request: NextRequest) {
   } catch {
     succeeded = false;
   }
-  redirect(succeeded ? "/" : "/login?error=confirmation");
+  redirect(succeeded ? consentPath(request.nextUrl.searchParams.get("authorization_id")) : "/login?error=confirmation");
 }
