@@ -18,7 +18,7 @@ supabase/.temp/
 
 # Local runtime data and logs
 .data/
-uploads/
+/uploads/
 *.log
 playwright-report/
 test-results/
