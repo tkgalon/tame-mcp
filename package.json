@@ -15,10 +15,16 @@
     "build:packages": "pnpm --filter './packages/**' --recursive build",
     "build": "pnpm --recursive build",
     "typecheck": "pnpm build:packages && pnpm --recursive typecheck",
-    "check": "pnpm typecheck && pnpm build"
+    "check": "pnpm typecheck && pnpm build",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset --local",
+    "test:db": "node --test --test-concurrency=1 scripts/database.test.mjs"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "pg": "8.23.1",
+    "supabase": "2.122.0"
   }
 }
