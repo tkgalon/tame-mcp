@@ -59,7 +59,7 @@ test("draft errors are allowlisted and provider details stay private", async () 
   }
 });
 test("oversized, malformed and wrong-draft responses fail closed", async () => {
-  for (const response of [new Response("x".repeat(128 * 1024 + 1)), new Response("invalid JSON"), Response.json(result(input()))]) {
+  for (const response of [new Response("x".repeat(256 * 1024 + 1)), new Response("invalid JSON"), Response.json(result(input()))]) {
     const repository = createProfileDraftRepository({ supabaseUrl: "https://project.supabase.co", secretKey: "sb_secret_test" }, async () => response);
     await assert.rejects(repository.get(principal, { draftId: randomUUID() }), { code: "profiles_unavailable" });
   }
