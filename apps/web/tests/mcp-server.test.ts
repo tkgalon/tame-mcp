@@ -55,6 +55,8 @@ describe("draft_profile", () => {
     expect(DRAFT_NEXT_STEP).toContain('reply "oke"');
     expect(DRAFT_NEXT_STEP).toContain("removed rule");
     expect(DRAFT_NEXT_STEP).toContain("Any clear approval counts");
+    expect(DRAFT_NEXT_STEP).toContain("Match the user's language and tone");
+    expect(DRAFT_NEXT_STEP).toContain("asking for confirmation");
     expect(DRAFT_NEXT_STEP).toContain("still asks for changes is not approval");
   });
 });
