@@ -23,7 +23,7 @@ export default async function CollectionsPage({ searchParams }: { searchParams: 
         <p>{page === 1 ? "No collections yet. Create one to get started." : "No collections on this page."}</p>
       ) : (
         <ul>
-          {result.items.map(collection => <li key={collection.id}>{collection.name}</li>)}
+          {result.items.map(collection => <li key={collection.id}><Link href={`/collections/${collection.id}`}>{collection.name}</Link></li>)}
         </ul>
       )}
       {result && (
