@@ -51,6 +51,7 @@ const handler = createMcpHandler({
 const email = `oauth-${crypto.randomUUID()}@test.local`;
 const password = "correct horse battery";
 let userId = "";
+const registeredClients: string[] = [];
 
 type Metadata = { authorization_endpoint: string; token_endpoint: string; registration_endpoint: string };
 
@@ -72,6 +73,7 @@ async function authorize(): Promise<{ accessToken: string; clientId: string }> {
   });
   expect(registration.status).toBe(201);
   const clientId = ((await registration.json()) as { client_id: string }).client_id;
+  registeredClients.push(clientId);
 
   const verifier = randomBytes(32).toString("base64url");
   const challenge = createHash("sha256").update(verifier).digest("base64url");
@@ -132,6 +134,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (userId) await admin.auth.admin.deleteUser(userId);
+  // Deleting the user removes consents and sessions, but registered clients stay unless removed
+  for (const clientId of registeredClients) await admin.auth.admin.oauth.deleteClient(clientId);
   await db.destroy();
 });
 
