@@ -181,6 +181,47 @@ describe("profile lifecycle", () => {
       );
     await expect(result).rejects.toThrow(/immutable/);
   });
+
+  it("keeps only the approved draft after several review rounds", async () => {
+    const pendingIds = async () =>
+      (await core.profiles.listDrafts(owner))
+        .filter((item) => item.name === "Review rounds")
+        .map((d) => d.id);
+
+    // Two rounds for a new profile, the second one is approved
+    const firstNew = await core.profiles.draft(owner, {
+      payload: payload(documentId, { name: "Review rounds" }),
+      preview: "",
+    });
+    const secondNew = await core.profiles.draft(owner, {
+      payload: payload(documentId, { name: "Review rounds", description: "Second round." }),
+      preview: "",
+    });
+    const v1 = await core.profiles.publish(owner, secondNew.draftId);
+    expect(await pendingIds()).not.toContain(firstNew.draftId);
+
+    // Three revision rounds on v1, the third one is approved
+    const revise = (description: string) =>
+      core.profiles.draft(owner, {
+        payload: payload(documentId, { name: "Review rounds", description }),
+        preview: "",
+        profileId: v1.profileId,
+        baseVersionId: v1.versionId,
+        reason: description,
+      });
+    const roundA = await revise("Round A.");
+    const roundB = await revise("Round B.");
+    const roundC = await revise("Round C.");
+    expect(await pendingIds()).toEqual(
+      expect.arrayContaining([roundA.draftId, roundB.draftId, roundC.draftId]),
+    );
+
+    const v2 = await core.profiles.publish(owner, roundC.draftId);
+    expect(v2.versionNumber).toBe(2);
+    expect(await pendingIds()).toEqual([]);
+    const active = await core.profiles.use(owner, { profileId: v1.profileId });
+    expect(active.status === "ready" && active.profile.description).toBe("Round C.");
+  });
 });
 
 describe("connections", () => {
