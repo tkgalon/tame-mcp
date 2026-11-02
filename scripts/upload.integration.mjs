@@ -153,6 +153,11 @@ async function run() {
 
     await expectResponse(await endpoint(`/api/collections/${collectionId}/documents`, { authenticated: false }), 401, "Anonymous access");
     await login(createdUsers[0], password);
+    const collectionListPage = await endpoint("/collections");
+    check(collectionListPage.ok && (await collectionListPage.text()).includes(`href="/collections/${collectionId}"`), "Collection name is not a navigable link.");
+    const collectionPage = await endpoint(`/collections/${collectionId}`);
+    const collectionHtml = await collectionPage.text();
+    check(collectionPage.ok && collectionHtml.includes('type="file"') && collectionHtml.includes("Upload document") && collectionHtml.includes("No documents yet"), "Collection page did not expose the upload form and empty state.");
     const source = Array.from({ length: 12 }, (_, ordinal) => `# Evidence ${ordinal}\n\nFinding ${ordinal} 😀\n`).join("\n");
     const bytes = new TextEncoder().encode(source);
     const registered = await expectResponse(await endpoint(`/api/collections/${collectionId}/uploads`, { method: "POST", body: { name: "writeup.md", sizeBytes: bytes.length } }), 201, "Register upload");
@@ -175,6 +180,9 @@ async function run() {
     }
     const list = await expectResponse(await endpoint(`/api/collections/${collectionId}/documents`), 200, "Document list");
     check(list.items.length === 1 && list.items[0].id === documentId && list.items[0].status === "uploaded", "The stored document is not visible in its collection.");
+    const uploadedPage = await endpoint(`/collections/${collectionId}`);
+    const uploadedHtml = await uploadedPage.text();
+    check(uploadedPage.ok && uploadedHtml.includes("writeup.md") && uploadedHtml.includes("Waiting for extraction"), "Collection page did not show the uploaded document status.");
     await expectResponse(await endpoint(`/api/documents/${documentId}/upload-url`, { method: "POST" }), 409, "Closed upload");
     await expectResponse(await endpoint(`/api/documents/${documentId}/complete`, { method: "POST", origin: "https://evil.example" }), 403, "Cross-origin request");
     console.info("PASS: registration, signed Storage transfer, confirmation retry, listing, and origin checks");
@@ -212,6 +220,9 @@ async function run() {
     await expectResponse(await endpoint(`/api/documents/${mismatch.document.id}/complete`, { method: "POST" }), 409, "Reject metadata mismatch");
 
     await login(createdUsers[1], password);
+    const forbiddenPage = await endpoint(`/collections/${collectionId}`);
+    const forbiddenHtml = await forbiddenPage.text();
+    check(forbiddenHtml.includes("This page could not be found") && !forbiddenHtml.includes(`Upload integration ${suffix}`), "Collection page exposed another account's collection.");
     await expectResponse(await endpoint(`/api/collections/${collectionId}/documents`), 404, "Cross-owner document list");
     await expectResponse(await endpoint(`/api/documents/${documentId}/upload-url`, { method: "POST" }), 404, "Cross-owner signing");
     await expectResponse(await endpoint(`/api/documents/${documentId}/complete`, { method: "POST" }), 404, "Cross-owner confirmation");
