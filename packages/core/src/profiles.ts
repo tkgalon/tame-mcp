@@ -5,6 +5,7 @@ import type {
   ProfilePayload,
   RollbackProfileInput,
 } from "@tame/contracts";
+import { sql } from "kysely";
 import type { Transaction } from "kysely";
 import { diffProfiles, hasChanges } from "./changes.js";
 import type { CoreContext } from "./context.js";
@@ -121,6 +122,28 @@ async function appendVersion(
   return { profileId, versionId: version.id, versionNumber };
 }
 
+// Review rounds leave one draft per round. Once one is published, the others can never publish
+// (their base is stale or their name is taken), so they are removed instead of piling up.
+async function removeSupersededDrafts(
+  trx: Transaction<DB>,
+  ownerId: string,
+  published: { id: string; profile_id: string | null; base_version_id: string | null },
+  name: string,
+) {
+  let query = trx
+    .deleteFrom("profile_drafts")
+    .where("owner_id", "=", ownerId)
+    .where("status", "=", "pending")
+    .where("id", "!=", published.id);
+  query =
+    published.profile_id && published.base_version_id
+      ? query
+          .where("profile_id", "=", published.profile_id)
+          .where("base_version_id", "=", published.base_version_id)
+      : query.where("profile_id", "is", null).where(sql`lower(payload->>'name')`, "=", name.toLowerCase());
+  await query.execute();
+}
+
 // Locks the profile row so two publishes against the same base cannot both win
 async function lockActive(trx: Transaction<DB>, ownerId: string, profileId: string, baseVersionId: string) {
   const profile = await trx
@@ -188,6 +211,7 @@ export async function publishProfile(
         .where("id", "=", draftId)
         .set({ status: "published", published_version_id: published.versionId })
         .execute();
+      await removeSupersededDrafts(trx, ownerId, draft, payload.name);
       return published;
     });
   } catch (error) {
