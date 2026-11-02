@@ -221,6 +221,29 @@ async function run() {
     check((await call("get_profile", { profileId: saved.profile.id })).evidenceStatus[0].status !== "available", "Changed source was not flagged on retrieval.");
     check(!(await admin.from("documents").update({ extraction_version: 1 }).eq("id", documentId).eq("owner_id", userId)).error, "Extraction fixture restore failed.");
     console.info("PASS profile v1 publication, active search/retrieval, retry safety, source revalidation and profile isolation");
+    const revisionInput = {
+      draftId: randomUUID(), profileId: saved.profile.id, baseVersionId: saved.profile.versionId,
+      payload: { ...draftInput.payload, rules: [...draftInput.payload.rules, { id: "natural_transitions", category: "style", instruction: "Avoid repetitive transition phrases", strength: "preferred", origin: "user_stated" }] },
+      preview: "Illustration: [reason connected to the next action]", reason: "Explicit permanent style preference",
+    };
+    const revision = await call("propose_profile_update", revisionInput);
+    check(revision.baseVersionId === saved.profile.versionId && revision.changes.rulesAdded.includes("natural_transitions"), "Revision did not expose its concurrency base and change summary.");
+    const competing = await call("propose_profile_update", { ...revisionInput, draftId: randomUUID(), reason: "Competing preference" });
+    const v2 = await call("save_profile_version", { draftId: revision.id, draftHash: revision.draftHash, idempotencyKey: randomUUID(), approval: "user_requested" });
+    check(v2.profile.id === saved.profile.id && v2.profile.versionNumber === 2, "Revision did not become v2 of the same profile.");
+    await expectToolError("save_profile_version", { draftId: competing.id, draftHash: competing.draftHash, idempotencyKey: randomUUID(), approval: "user_requested" }, "version_conflict");
+    const historical = await call("get_profile_version", { profileId: saved.profile.id, versionId: saved.profile.versionId });
+    check(historical.payload.rules.length === 1, "The original v1 snapshot changed.");
+    const rollbackInput = { profileId: saved.profile.id, targetVersionId: saved.profile.versionId, baseVersionId: v2.profile.versionId,
+      reason: "Explicit request to restore v1 style", idempotencyKey: randomUUID(), approval: "user_requested" };
+    const restored = await call("rollback_profile", rollbackInput);
+    check(restored.profile.versionNumber === 3 && restored.profile.restoredFromVersionId === saved.profile.versionId, "Rollback did not create v3 from v1.");
+    check((await call("rollback_profile", rollbackInput)).profile.versionId === restored.profile.versionId, "Rollback retry created another version.");
+    const history = await call("list_profile_versions", { profileId: saved.profile.id });
+    check(JSON.stringify(history.items.map(item => item.versionNumber)) === "[3,2,1]", "Version history is incomplete.");
+    check((await call("get_profile", { profileId: saved.profile.id })).versionId === restored.profile.versionId, "Rollback did not activate the restored snapshot.");
+    await expectToolError("get_profile_version", { profileId: foreignProfileId, versionId: saved.profile.versionId }, "not_found");
+    console.info("PASS profile v2 revision, stale-base rejection, historical snapshots and idempotent rollback as v3");
     await expectToolError("list_documents", { collectionId: otherCollection.data.id }, "not_found");
     await expectToolError("read_document", { documentId: foreignDocumentId }, "not_found");
     await expectToolError("read_document", { documentId, version: 2 }, "extraction_changed");
