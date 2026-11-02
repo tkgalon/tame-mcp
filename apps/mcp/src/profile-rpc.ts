@@ -3,9 +3,10 @@ import type { McpConfig } from "./config.js";
 
 export class ProfileFailure extends Error {
   constructor(readonly code: "permission_denied" | "invalid_draft" | "invalid_evidence" | "draft_conflict" | "not_found" | "profiles_unavailable"
-    | "draft_changed" | "draft_not_pending" | "idempotency_conflict" | "invalid_request") { super(code); }
+    | "draft_changed" | "draft_not_pending" | "idempotency_conflict" | "invalid_request" | "version_conflict" | "no_changes") { super(code); }
 }
-type Operation = "create_mcp_profile_draft" | "get_mcp_profile_draft" | "save_mcp_profile_version" | "find_mcp_profiles" | "get_mcp_profile";
+type Operation = "create_mcp_profile_draft" | "get_mcp_profile_draft" | "save_mcp_profile_version" | "find_mcp_profiles" | "get_mcp_profile"
+  | "propose_mcp_profile_update" | "get_mcp_profile_version" | "list_mcp_profile_versions" | "rollback_mcp_profile";
 export function createProfileRpc(config: McpConfig, request: typeof fetch = fetch) {
   const headers: Record<string, string> = { apikey: config.secretKey, "Content-Type": "application/json", Accept: "application/json" };
   if (!config.secretKey.startsWith("sb_secret_")) headers["Authorization"] = `Bearer ${config.secretKey}`;
@@ -35,7 +36,7 @@ export function createProfileRpc(config: McpConfig, request: typeof fetch = fetc
         if (error?.code === "23505" && error.message === "draft_conflict") throw new ProfileFailure("draft_conflict");
         if (error?.code === "23505" && error.message === "idempotency_conflict") throw new ProfileFailure("idempotency_conflict");
         if (error?.code === "22023") {
-          for (const code of ["invalid_evidence", "invalid_draft", "draft_changed", "draft_not_pending", "invalid_request"] as const) {
+          for (const code of ["invalid_evidence", "invalid_draft", "draft_changed", "draft_not_pending", "invalid_request", "version_conflict", "no_changes"] as const) {
             if (error.message === code) throw new ProfileFailure(code);
           }
         }
