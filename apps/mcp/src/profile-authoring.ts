@@ -17,7 +17,8 @@ export function getProfileAuthoringGuide() {
       "Use unconfirmed for a tentative preference without evidence and never make it required. Use user_stated only for an explicit user preference in this conversation. Use product_default for general safeguards such as not inventing facts. Origin labels are agent reports, not independently verified user approval.",
       "Write an illustrative preview using only supplied facts. Label placeholders clearly, and label the preview as an illustration. Explain rules and uncertainty in the conversation for review.",
       "Generate a new UUID as draftId and call create_profile_draft with payload and preview. Reuse the same ID and exactly the same content only for retries. Changed content needs a new draft ID. get_profile_draft retrieves the stored proposal for later review.",
-      "Report the draft ID and pending_review status. This stage stores proposals only. It cannot activate profiles, publish versions, or apply future corrections automatically.",
+      "Report the draft ID, draftHash and pending_review status. Stop for user review. Only after an explicit request to publish, call save_profile_version with the reviewed draftId and draftHash, a new UUID idempotencyKey and approval=user_requested. Reuse exactly the same key and arguments for retries. This operation activates only new profiles as v1. Changes to existing profiles are not supported yet.",
+      "Use find_profiles to locate active profiles and get_profile to retrieve the chosen version for a new task. If multiple profiles match, ask the user. Report which profile and version you used. Use the new task's facts and vary wording naturally. Situational corrections do not change stored profiles.",
     ],
     safeguards: [
       "TAME does not call an LLM. Analysis and writing happen in the user's connected agent using its existing quota.",
@@ -25,7 +26,7 @@ export function getProfileAuthoringGuide() {
       "Separate reusable work patterns from challenge names, flags, IP addresses, commands and solution facts. New outputs must use facts from the new task. Do not copy example sentences as a fixed template.",
       "Drafts allow at most 20 rules, 40 evidence entries and a 6000-character preview. Each evidence excerpt is at most 1000 characters. The serialized input must fit within 48 KiB. Avoid repeating entire documents.",
       "Creating a draft requires write_profiles. Including evidence additionally requires read_examples. Reading a stored draft requires read_profiles. Source existence and exact excerpt matches are checked at creation, not semantic support for a rule.",
-      "Sources can change or be deleted after creation. Stored evidence is a historical snapshot. Publication must revalidate sources and requires a separate explicit user request and a dedicated publication operation.",
+      "Sources can change or be deleted after creation. Publication revalidates sources, locks the draft and checks its hash. save_profile_version requires read_profiles, write_profiles and read_examples when evidence exists. The user_requested flag reports the agent's interpretation, not independently verified user intent. A stale or deleted source prevents publication. get_profile preserves historical evidence and flags unavailable or changed sources.",
     ],
   };
 }
