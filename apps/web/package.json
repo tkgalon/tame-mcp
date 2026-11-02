@@ -4,19 +4,22 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
-    "typecheck": "next typegen && tsc --noEmit",
-    "test": "vitest run"
+    "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.118.0",
     "@tame/contracts": "workspace:*",
+    "@tame/core": "workspace:*",
+    "@tame/extraction": "workspace:*",
+    "jose": "6.2.14",
     "next": "16.4.3",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "@supabase/ssr": "0.12.7",
-    "@supabase/supabase-js": "2.118.0",
     "server-only": "0.0.1",
     "zod": "4.6.7"
   },
@@ -24,7 +27,6 @@
     "@tailwindcss/postcss": "4.3.3",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
-    "tailwindcss": "4.3.3",
-    "vitest": "5.0.5"
+    "tailwindcss": "4.3.3"
   }
 }

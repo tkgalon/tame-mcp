@@ -1,11 +1,11 @@
 "use client";
 
 import { useActionState } from "react";
-import { createCollectionAction } from "../app/collections/actions";
-import { initialCollectionState } from "../lib/collections/schema";
+import { createCollection } from "../app/(app)/collections/actions";
+import { idle } from "../lib/action-state";
 
 export function CreateCollectionForm() {
-  const [state, action, pending] = useActionState(createCollectionAction, initialCollectionState);
+  const [state, action, pending] = useActionState(createCollection, idle);
   return (
     <form action={action}>
       <fieldset disabled={pending}>

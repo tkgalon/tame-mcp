@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "TAME-MCP — Teach Agents My Examples",
-  description: "Turn examples into reusable AI task profiles.",
+  title: "TAME",
+  description: "Teach Agents My Examples",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

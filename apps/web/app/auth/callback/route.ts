@@ -1,20 +1,11 @@
 import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
-import { createSupabaseServerClient } from "../../../lib/supabase/server";
-import { readAuthConfig } from "../../../lib/auth/config";
-
-import { consentPath } from "../../../lib/oauth/schema";
+import { createSessionClient } from "../../../lib/supabase";
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
-  if (!code || code.length > 2048 || !readAuthConfig()) redirect("/login?error=confirmation");
-  let succeeded = false;
-  try {
-    const supabase = await createSupabaseServerClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    succeeded = !error;
-  } catch {
-    succeeded = false;
-  }
-  redirect(succeeded ? consentPath(request.nextUrl.searchParams.get("authorization_id")) : "/login?error=confirmation");
+  if (!code || code.length > 2048) redirect("/login");
+  const supabase = await createSessionClient();
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  redirect(error ? "/login" : "/");
 }

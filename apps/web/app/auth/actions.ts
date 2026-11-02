@@ -1,68 +1,47 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
-import { createSupabaseServerClient } from "../../lib/supabase/server";
-import { readAuthConfig } from "../../lib/auth/config";
-import { authorizationId, consentPath } from "../../lib/oauth/schema";
-import { readCredentials } from "../../lib/auth/form";
-import type { AuthActionState } from "../../lib/auth/form";
+import { z } from "zod";
+import type { ActionState } from "../../lib/action";
+import { publicConfig } from "../../lib/env";
+import { createSessionClient } from "../../lib/supabase";
+import { afterSignIn } from "../oauth/consent/path";
 
-const unavailable: AuthActionState = {
-  status: "error",
-  message: "Authentication is unavailable. Check the server configuration and try again.",
-};
+const credentialsSchema = z.object({
+  email: z.email().max(254).toLowerCase(),
+  password: z.string().min(8).max(128),
+});
 
-export async function signInAction(_previous: AuthActionState, formData: FormData): Promise<AuthActionState> {
-  if (!readAuthConfig()) return unavailable;
-  const credentials = readCredentials(formData, "sign-in");
-  if (!credentials) return { status: "error", message: "Enter a valid email address and password." };
-  try {
-    const supabase = await createSupabaseServerClient();
-    const { error } = await supabase.auth.signInWithPassword(credentials);
-    if (error) return { status: "error", message: "Unable to sign in. Check your credentials or try again later." };
-  } catch {
-    return unavailable;
-  }
-  revalidatePath("/", "layout");
-  redirect(consentPath(formData.get("authorizationId")));
+function readCredentials(form: FormData) {
+  return credentialsSchema.safeParse({ email: form.get("email"), password: form.get("password") });
 }
 
-export async function signUpAction(_previous: AuthActionState, formData: FormData): Promise<AuthActionState> {
-  const config = readAuthConfig();
-  if (!config) return unavailable;
-  const credentials = readCredentials(formData, "sign-up");
-  if (!credentials) return { status: "error", message: "Enter a valid email address and a password of 8 to 128 characters." };
-  const continuationId = authorizationId(formData.get("authorizationId"));
-  const emailRedirectTo = `${config.siteUrl}/auth/callback${continuationId ? `?authorization_id=${continuationId}` : ""}`;
-  let signedIn = false;
-  try {
-    const supabase = await createSupabaseServerClient();
-    const { data, error } = await supabase.auth.signUp({
-      ...credentials,
-      options: { emailRedirectTo },
-    });
-    if (error) return { status: "error", message: "Unable to create an account. Try again later or sign in if you already have one." };
-    signedIn = Boolean(data.session);
-  } catch {
-    return unavailable;
-  }
-  if (signedIn) {
-    revalidatePath("/", "layout");
-    redirect(consentPath(formData.get("authorizationId")));
-  }
-  return { status: "success", message: "If confirmation is required, check your email to continue. You can sign in once your account is ready." };
+export async function signIn(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const credentials = readCredentials(form);
+  if (!credentials.success) return { status: "error", message: "Enter your email and password." };
+  const supabase = await createSessionClient();
+  const { error } = await supabase.auth.signInWithPassword(credentials.data);
+  if (error) return { status: "error", message: "Unable to sign in. Check your email and password." };
+  redirect(afterSignIn(form.get("authorizationId")));
 }
 
-export async function signOutAction(_previous: AuthActionState, _formData: FormData): Promise<AuthActionState> {
-  if (!readAuthConfig()) return unavailable;
-  try {
-    const supabase = await createSupabaseServerClient();
-    const { error } = await supabase.auth.signOut({ scope: "local" });
-    if (error) return { status: "error", message: "Unable to sign out. Try again." };
-  } catch {
-    return unavailable;
+export async function signUp(_previous: ActionState, form: FormData): Promise<ActionState> {
+  const credentials = readCredentials(form);
+  if (!credentials.success) {
+    return { status: "error", message: "Enter a valid email and a password of 8 to 128 characters." };
   }
-  revalidatePath("/", "layout");
+  const supabase = await createSessionClient();
+  const { data, error } = await supabase.auth.signUp({
+    ...credentials.data,
+    options: { emailRedirectTo: `${publicConfig().siteUrl}/auth/callback` },
+  });
+  if (error) return { status: "error", message: "Unable to create the account. Try again later." };
+  if (data.session) redirect(afterSignIn(form.get("authorizationId")));
+  return { status: "success", message: "Check your email to confirm the account, then sign in." };
+}
+
+export async function signOut(): Promise<void> {
+  const supabase = await createSessionClient();
+  await supabase.auth.signOut({ scope: "local" });
   redirect("/login");
 }
