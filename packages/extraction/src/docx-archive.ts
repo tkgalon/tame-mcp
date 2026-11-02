@@ -8,10 +8,14 @@ export const MAX_DOCX_EXPANDED_BYTES = 32 * 1024 * 1024;
 
 export async function boundedDocxArchive(bytes: Uint8Array): Promise<Buffer> {
   const zip = await new Promise<yauzl.ZipFile>((resolve, reject) => {
-    yauzl.fromBuffer(Buffer.from(bytes), { lazyEntries: true, validateEntrySizes: true, strictFileNames: true }, (error, archive) => {
-      if (error || !archive) reject(new ExtractionInputError("invalid_document"));
-      else resolve(archive);
-    });
+    yauzl.fromBuffer(
+      Buffer.from(bytes),
+      { lazyEntries: true, validateEntrySizes: true, strictFileNames: true },
+      (error, archive) => {
+        if (error || !archive) reject(new ExtractionInputError("invalid_document"));
+        else resolve(archive);
+      },
+    );
   });
   return new Promise((resolve, reject) => {
     const files: Record<string, Uint8Array> = Object.create(null);
@@ -30,17 +34,24 @@ export async function boundedDocxArchive(bytes: Uint8Array): Promise<Buffer> {
       void (async () => {
         if (++entries > MAX_DOCX_ENTRIES) throw new ExtractionInputError("archive_limit_exceeded");
         const name = entry.fileName;
-        if (names.has(name) || name.split("/").some(part => part === ".." || part === ".") || /[\\\u0000-\u001f]/.test(name)) {
+        if (
+          names.has(name) ||
+          name.split("/").some((part) => part === ".." || part === ".") ||
+          /[\\\u0000-\u001f]/.test(name)
+        ) {
           throw new ExtractionInputError("invalid_document");
         }
         names.add(name);
         if (entry.generalPurposeBitFlag & 1) throw new ExtractionInputError("password_required");
         if (![0, 8].includes(entry.compressionMethod)) throw new ExtractionInputError("invalid_document");
-        if (entry.uncompressedSize > MAX_DOCX_ENTRY_BYTES || expandedBytes + entry.uncompressedSize > MAX_DOCX_EXPANDED_BYTES) {
+        if (
+          entry.uncompressedSize > MAX_DOCX_ENTRY_BYTES ||
+          expandedBytes + entry.uncompressedSize > MAX_DOCX_EXPANDED_BYTES
+        ) {
           throw new ExtractionInputError("archive_limit_exceeded");
         }
         const stream = await new Promise<NodeJS.ReadableStream>((accept, decline) => {
-          zip.openReadStream(entry, (error, value) => error || !value ? decline(error) : accept(value));
+          zip.openReadStream(entry, (error, value) => (error || !value ? decline(error) : accept(value)));
         });
         const chunks: Buffer[] = [];
         let size = 0;
@@ -59,7 +70,7 @@ export async function boundedDocxArchive(bytes: Uint8Array): Promise<Buffer> {
     });
     zip.on("end", () => {
       if (settled) return;
-      if (!["[Content_Types].xml", "_rels/.rels", "word/document.xml"].every(name => files[name])) {
+      if (!["[Content_Types].xml", "_rels/.rels", "word/document.xml"].every((name) => files[name])) {
         fail(new ExtractionInputError("invalid_document"));
         return;
       }
@@ -68,7 +79,9 @@ export async function boundedDocxArchive(bytes: Uint8Array): Promise<Buffer> {
         const canonical = zipSync(files, { level: 0 });
         settled = true;
         resolve(Buffer.from(canonical));
-      } catch (error) { fail(error); }
+      } catch (error) {
+        fail(error);
+      }
     });
     zip.readEntry();
   });

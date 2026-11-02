@@ -19,9 +19,14 @@ export async function parsePdfDocument(bytes: Uint8Array): Promise<ExtractionRes
   let task: ReturnType<typeof getDocument> | undefined;
   try {
     task = getDocument({
-      data: Uint8Array.from(bytes), verbosity: 0, stopAtErrors: true,
-      useWorkerFetch: false, useSystemFonts: false, disableFontFace: true,
-      enableXfa: false, disableAutoFetch: true,
+      data: Uint8Array.from(bytes),
+      verbosity: 0,
+      stopAtErrors: true,
+      useWorkerFetch: false,
+      useSystemFonts: false,
+      disableFontFace: true,
+      enableXfa: false,
+      disableAutoFetch: true,
     });
     const pdf = await task.promise;
     if (pdf.numPages > MAX_PDF_PAGES) throw new ExtractionInputError("page_limit_exceeded");
@@ -57,11 +62,16 @@ export async function parsePdfDocument(bytes: Uint8Array): Promise<ExtractionRes
         warnings.add("pages_without_text");
       }
     }
-    if (!text.text.trim()) return { ...base, status: "needs_ocr", errorCode: "no_extractable_text", warnings: [...warnings] };
+    if (!text.text.trim())
+      return { ...base, status: "needs_ocr", errorCode: "no_extractable_text", warnings: [...warnings] };
     return buildExtraction({ ...base, text: text.text }, blocks, warnings);
   } catch (error) {
-    const code = error instanceof ExtractionInputError ? error.code
-      : error instanceof Error && error.name === "PasswordException" ? "password_required" : "invalid_document";
+    const code =
+      error instanceof ExtractionInputError
+        ? error.code
+        : error instanceof Error && error.name === "PasswordException"
+          ? "password_required"
+          : "invalid_document";
     return extractionFailure(base, code, warnings);
   } finally {
     await task?.destroy().catch(() => {});

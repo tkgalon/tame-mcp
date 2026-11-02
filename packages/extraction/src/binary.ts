@@ -3,7 +3,9 @@ import { MAX_DOCUMENT_BYTES, MAX_EXTRACTED_CHARACTERS } from "@tame/contracts";
 import type { ExtractionErrorCode } from "@tame/contracts";
 
 export class ExtractionInputError extends Error {
-  constructor(readonly code: ExtractionErrorCode) { super(code); }
+  constructor(readonly code: ExtractionErrorCode) {
+    super(code);
+  }
 }
 
 export function binaryDocument(bytes: Uint8Array, parserVersion: string) {

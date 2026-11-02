@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import test from "node:test";
-import { extractionResultSchema, MAX_DOCUMENT_BYTES, MAX_EXTRACTED_CHARACTERS, MAX_SECTION_CHARACTERS } from "@tame/contracts";
-import { parseTextDocument } from "../dist/text.js";
+import { test } from "vitest";
+import {
+  extractionResultSchema,
+  MAX_DOCUMENT_BYTES,
+  MAX_EXTRACTED_CHARACTERS,
+  MAX_SECTION_CHARACTERS,
+} from "@tame/contracts";
+import { parseTextDocument } from "../src/text";
 
-const bytes = value => new TextEncoder().encode(value);
-const content = result => result.sections.map(section => section.content).join("");
+const bytes = (value) => new TextEncoder().encode(value);
+const content = (result) => result.sections.map((section) => section.content).join("");
 
 test("normalizes UTF-8 BOM and line endings without changing code indentation", () => {
   const original = bytes('\ufeffWrite-up\r\n\r\n\tprintf "hello"  \r\n');
@@ -63,5 +68,5 @@ test("preserves whitespace and stable section order across repeated parses", () 
   const result = parseTextDocument(bytes(input));
   assert.equal(content(result), input);
   assert.deepEqual(parseTextDocument(bytes(input)), result);
-  assert.ok(result.sections.every(section => [...section.content].length <= MAX_SECTION_CHARACTERS));
+  assert.ok(result.sections.every((section) => [...section.content].length <= MAX_SECTION_CHARACTERS));
 });
