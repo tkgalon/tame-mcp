@@ -1,10 +1,26 @@
 import "server-only";
 
 import { createSupabaseServerClient } from "../supabase/server";
+import { z } from "zod";
+import { ApiError } from "../http/api";
 import {
   COLLECTION_PAGE_SIZE, MAX_COLLECTION_PAGE, collectionListSchema,
   collectionNameSchema, collectionSchema, readCollectionPage,
 } from "./schema";
+
+export async function getCollection(ownerId: string, collectionId: string) {
+  const id = z.uuid().parse(collectionId).toLowerCase();
+  const supabase = await createSupabaseServerClient({ readOnly: true });
+  const { data, error } = await supabase.from("collections").select("id,owner_id,name,created_at")
+    .eq("id", id).eq("owner_id", ownerId).maybeSingle();
+  if (error) throw new ApiError(502, "storage_unavailable", "Unable to load the collection.");
+  if (!data) throw new ApiError(404, "not_found", "Collection not found.");
+  const parsed = collectionSchema.extend({ owner_id: z.uuid() }).safeParse(data);
+  if (!parsed.success || parsed.data.id !== id || parsed.data.owner_id !== ownerId) {
+    throw new ApiError(502, "invalid_provider_response", "The collection service returned an invalid response.");
+  }
+  return collectionSchema.parse(parsed.data);
+}
 
 export async function listCollections(ownerId: string, page = 1) {
   const currentPage = readCollectionPage(String(page));

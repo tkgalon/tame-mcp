@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(), from: vi.fn(), select: vi.fn(), eq: vi.fn(),
-  order: vi.fn(), range: vi.fn(), insert: vi.fn(), single: vi.fn(),
+  order: vi.fn(), range: vi.fn(), insert: vi.fn(), single: vi.fn(), maybeSingle: vi.fn(),
 }));
 vi.mock("server-only", () => ({}));
 vi.mock("../lib/supabase/server", () => ({ createSupabaseServerClient: mocks.createClient }));
 
-import { createCollection, listCollections } from "../lib/collections/data";
+import { createCollection, listCollections, getCollection } from "../lib/collections/data";
 import { collectionNameSchema, readCollectionPage } from "../lib/collections/schema";
 
 const owner = "11111111-1111-4111-8111-111111111111";
@@ -18,11 +18,12 @@ const row = {
 };
 
 beforeEach(() => {
-  const query = { select: mocks.select, eq: mocks.eq, order: mocks.order, range: mocks.range, insert: mocks.insert, single: mocks.single };
+  const query = { select: mocks.select, eq: mocks.eq, order: mocks.order, range: mocks.range, insert: mocks.insert, single: mocks.single, maybeSingle: mocks.maybeSingle };
   mocks.createClient.mockResolvedValue({ from: mocks.from });
   for (const mock of [mocks.from, mocks.select, mocks.eq, mocks.order, mocks.insert]) mock.mockReturnValue(query);
   mocks.range.mockResolvedValue({ data: [], error: null });
   mocks.single.mockResolvedValue({ data: row, error: null });
+  mocks.maybeSingle.mockResolvedValue({ data: { ...row, owner_id: owner }, error: null });
 });
 
 describe("collection input", () => {
@@ -43,6 +44,21 @@ describe("collection input", () => {
 });
 
 describe("collection reads", () => {
+  it("loads a detail page only for the verified owner and requested collection", async () => {
+    expect(await getCollection(owner, row.id.toUpperCase())).toEqual(row);
+    expect(mocks.eq).toHaveBeenCalledWith("id", row.id);
+    expect(mocks.eq).toHaveBeenCalledWith("owner_id", owner);
+    mocks.maybeSingle.mockResolvedValue({ data: null, error: null });
+    await expect(getCollection(owner, row.id)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("rejects wrong-owner and mismatched collection detail responses", async () => {
+    for (const data of [{ ...row, owner_id: row.id }, { ...row, owner_id: owner, id: owner }]) {
+      mocks.maybeSingle.mockResolvedValue({ data, error: null });
+      await expect(getCollection(owner, row.id)).rejects.toMatchObject({ status: 502 });
+    }
+  });
+
   it("uses the session client and an explicit owner filter", async () => {
     mocks.range.mockResolvedValue({ data: [row], error: null });
     expect(await listCollections(owner)).toEqual({ items: [row], hasNextPage: false });
