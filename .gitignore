@@ -15,6 +15,7 @@ next-env.d.ts
 .vercel/
 .supabase/
 supabase/.temp/
+.venv/
 
 # Local runtime data and logs
 .data/
