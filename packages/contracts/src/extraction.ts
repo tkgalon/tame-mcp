@@ -12,28 +12,63 @@ function withinCodePointLimit(value: string, limit: number): boolean {
   return true;
 }
 
-export const extractionWarningSchema = z.enum(["section_split", "heading_shortened", "images_not_extracted", "html_preserved", "layout_approximate", "pages_without_text", "conversion_warning"]);
+export const extractionWarningSchema = z.enum([
+  "section_split",
+  "heading_shortened",
+  "images_not_extracted",
+  "html_preserved",
+  "layout_approximate",
+  "pages_without_text",
+  "conversion_warning",
+]);
 export type ExtractionWarning = z.infer<typeof extractionWarningSchema>;
 
 export const extractionErrorCodeSchema = z.enum([
-  "empty_document", "file_too_large", "invalid_utf8", "binary_content", "format_mismatch",
-  "text_limit_exceeded", "section_limit_exceeded", "parser_error", "invalid_document", "password_required",
-  "archive_limit_exceeded", "page_limit_exceeded", "invalid_text_content", "complexity_limit_exceeded",
+  "empty_document",
+  "file_too_large",
+  "invalid_utf8",
+  "binary_content",
+  "format_mismatch",
+  "text_limit_exceeded",
+  "section_limit_exceeded",
+  "parser_error",
+  "invalid_document",
+  "password_required",
+  "archive_limit_exceeded",
+  "page_limit_exceeded",
+  "invalid_text_content",
+  "complexity_limit_exceeded",
 ]);
 export type ExtractionErrorCode = z.infer<typeof extractionErrorCodeSchema>;
 
-export const extractedSectionSchema = z.strictObject({
-  ordinal: z.number().int().min(0),
-  heading: z.string().max(MAX_HEADING_CHARACTERS * 2)
-    .refine(value => !value.includes("\0") && withinCodePointLimit(value, MAX_HEADING_CHARACTERS)).nullable(),
-  page: z.number().int().positive().nullable(),
-  content: z.string().min(1).max(MAX_SECTION_CHARACTERS * 2)
-    .refine(value => !value.includes("\0") && withinCodePointLimit(value, MAX_SECTION_CHARACTERS)),
-  sourceStart: z.number().int().min(0).max(MAX_EXTRACTED_CHARACTERS * 2),
-  sourceEnd: z.number().int().positive().max(MAX_EXTRACTED_CHARACTERS * 2),
-}).refine(section => section.sourceEnd - section.sourceStart === section.content.length, {
-  message: "Source offsets must match the section's UTF-16 length.",
-});
+export const extractedSectionSchema = z
+  .strictObject({
+    ordinal: z.number().int().min(0),
+    heading: z
+      .string()
+      .max(MAX_HEADING_CHARACTERS * 2)
+      .refine((value) => !value.includes("\0") && withinCodePointLimit(value, MAX_HEADING_CHARACTERS))
+      .nullable(),
+    page: z.number().int().positive().nullable(),
+    content: z
+      .string()
+      .min(1)
+      .max(MAX_SECTION_CHARACTERS * 2)
+      .refine((value) => !value.includes("\0") && withinCodePointLimit(value, MAX_SECTION_CHARACTERS)),
+    sourceStart: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_EXTRACTED_CHARACTERS * 2),
+    sourceEnd: z
+      .number()
+      .int()
+      .positive()
+      .max(MAX_EXTRACTED_CHARACTERS * 2),
+  })
+  .refine((section) => section.sourceEnd - section.sourceStart === section.content.length, {
+    message: "Source offsets must match the section's UTF-16 length.",
+  });
 export type ExtractedSection = z.infer<typeof extractedSectionSchema>;
 
 const extractionBase = {
@@ -42,41 +77,60 @@ const extractionBase = {
   warnings: z.array(extractionWarningSchema).max(10),
 };
 
-export const readyExtractionSchema = z.strictObject({
-  ...extractionBase,
-  status: z.literal("ready"),
-  sections: z.array(extractedSectionSchema).min(1).max(MAX_EXTRACTION_SECTIONS),
-}).superRefine((result, context) => {
-  let nextOffset = 0;
-  let totalCharacters = 0;
-  for (const [index, section] of result.sections.entries()) {
-    if (section.ordinal !== index || section.sourceStart !== nextOffset) {
-      context.addIssue({ code: "custom", path: ["sections", index], message: "Sections must have contiguous source offsets and ordinals." });
-    }
-    nextOffset = section.sourceEnd;
-    for (const _character of section.content) {
-      if (++totalCharacters > MAX_EXTRACTED_CHARACTERS) {
-        context.addIssue({ code: "custom", path: ["sections"], message: "Extracted text exceeds the document limit." });
-        return;
+export const readyExtractionSchema = z
+  .strictObject({
+    ...extractionBase,
+    status: z.literal("ready"),
+    sections: z.array(extractedSectionSchema).min(1).max(MAX_EXTRACTION_SECTIONS),
+  })
+  .superRefine((result, context) => {
+    let nextOffset = 0;
+    let totalCharacters = 0;
+    for (const [index, section] of result.sections.entries()) {
+      if (section.ordinal !== index || section.sourceStart !== nextOffset) {
+        context.addIssue({
+          code: "custom",
+          path: ["sections", index],
+          message: "Sections must have contiguous source offsets and ordinals.",
+        });
+      }
+      nextOffset = section.sourceEnd;
+      for (const _character of section.content) {
+        if (++totalCharacters > MAX_EXTRACTED_CHARACTERS) {
+          context.addIssue({
+            code: "custom",
+            path: ["sections"],
+            message: "Extracted text exceeds the document limit.",
+          });
+          return;
+        }
       }
     }
-  }
-});
+  });
 
 export const failedExtractionSchema = z.strictObject({
-  ...extractionBase, status: z.literal("failed"), errorCode: extractionErrorCodeSchema,
+  ...extractionBase,
+  status: z.literal("failed"),
+  errorCode: extractionErrorCodeSchema,
 });
 
 export const unsupportedExtractionSchema = z.strictObject({
-  ...extractionBase, status: z.literal("unsupported"), errorCode: z.literal("unsupported_media_type"),
+  ...extractionBase,
+  status: z.literal("unsupported"),
+  errorCode: z.literal("unsupported_media_type"),
 });
 
 export const needsOcrExtractionSchema = z.strictObject({
-  ...extractionBase, status: z.literal("needs_ocr"), errorCode: z.literal("no_extractable_text"),
+  ...extractionBase,
+  status: z.literal("needs_ocr"),
+  errorCode: z.literal("no_extractable_text"),
 });
 
 export const extractionResultSchema = z.discriminatedUnion("status", [
-  readyExtractionSchema, failedExtractionSchema, unsupportedExtractionSchema, needsOcrExtractionSchema,
+  readyExtractionSchema,
+  failedExtractionSchema,
+  unsupportedExtractionSchema,
+  needsOcrExtractionSchema,
 ]);
 export type ExtractionResult = z.infer<typeof extractionResultSchema>;
 export type ExtractionFailure = z.infer<typeof failedExtractionSchema>;

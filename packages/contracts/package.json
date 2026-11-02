@@ -9,12 +9,12 @@
       "import": "./dist/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "dev": "tsc --build --watch",
     "build": "tsc --build",
-    "typecheck": "tsc --noEmit --incremental false --composite false",
-    "test": "pnpm build && node --test --test-reporter=spec"
+    "typecheck": "tsc --noEmit --incremental false --composite false"
   },
   "dependencies": {
     "zod": "4.6.7"
