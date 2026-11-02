@@ -197,6 +197,30 @@ async function run() {
     const publishedCount = await admin.from("profile_versions").select("id", { count: "exact", head: true }).eq("owner_id", userId);
     check(!evidenceCount.error && evidenceCount.count === 1 && !publishedCount.error && publishedCount.count === 0, "Draft sources or non-publication guarantees failed.");
     console.info("PASS profile authoring guide, draft creation/retrieval, evidence checks, idempotent retry and draft isolation");
+    check((await call("find_profiles")).items.length === 0, "A pending draft appeared as an active profile.");
+    const publication = { draftId: draft.id, draftHash: draft.draftHash, idempotencyKey: randomUUID(), approval: "user_requested" };
+    const saved = await call("save_profile_version", publication);
+    check(saved.profile.versionNumber === 1 && saved.profile.evidenceStatus[0].status === "available", "Publication did not produce a valid v1 snapshot.");
+    check((await call("save_profile_version", publication)).profile.versionId === saved.profile.versionId, "Publication retry created a second version.");
+    const matches = await call("find_profiles", { query: "OAUTH FIXTURE", page: 1 });
+    check(matches.items.length === 1 && matches.items[0].id === saved.profile.id, "Active profile search failed.");
+    check((await call("get_profile", { profileId: saved.profile.id })).versionId === saved.profile.versionId, "Active profile retrieval returned the wrong version.");
+    const draftAfterPublication = await call("get_profile_draft", { draftId: draft.id });
+    check(draftAfterPublication.status === "published", "Draft was not marked published.");
+    const secondProposal = { ...draftInput, draftId: randomUUID() };
+    const secondDraft = await call("create_profile_draft", secondProposal);
+    await expectToolError("save_profile_version", { ...publication, draftId: secondDraft.id, draftHash: secondDraft.draftHash }, "idempotency_conflict");
+    await expectToolError("save_profile_version", { ...publication, draftId: secondDraft.id, draftHash: "0".repeat(64), idempotencyKey: randomUUID() }, "draft_changed");
+    const foreignProfileId = randomUUID(), foreignVersionId = randomUUID();
+    check(!(await admin.from("profiles").insert({ id: foreignProfileId, owner_id: otherUserId, name: "Foreign profile" })).error, "Foreign profile fixture failed.");
+    check(!(await admin.from("profile_versions").insert({ id: foreignVersionId, owner_id: otherUserId, profile_id: foreignProfileId, version_number: 1, payload: draftInput.payload, approval_channel: "chat", approved_by: otherUserId })).error, "Foreign version fixture failed.");
+    check(!(await admin.from("profiles").update({ active_version_id: foreignVersionId }).eq("id", foreignProfileId)).error, "Foreign active version fixture failed.");
+    await expectToolError("get_profile", { profileId: foreignProfileId }, "not_found");
+    check(!(await admin.from("documents").update({ extraction_version: 2 }).eq("id", documentId).eq("owner_id", userId)).error, "Extraction change fixture failed.");
+    await expectToolError("save_profile_version", { draftId: secondDraft.id, draftHash: secondDraft.draftHash, idempotencyKey: randomUUID(), approval: "user_requested" }, "invalid_evidence");
+    check((await call("get_profile", { profileId: saved.profile.id })).evidenceStatus[0].status !== "available", "Changed source was not flagged on retrieval.");
+    check(!(await admin.from("documents").update({ extraction_version: 1 }).eq("id", documentId).eq("owner_id", userId)).error, "Extraction fixture restore failed.");
+    console.info("PASS profile v1 publication, active search/retrieval, retry safety, source revalidation and profile isolation");
     await expectToolError("list_documents", { collectionId: otherCollection.data.id }, "not_found");
     await expectToolError("read_document", { documentId: foreignDocumentId }, "not_found");
     await expectToolError("read_document", { documentId, version: 2 }, "extraction_changed");
@@ -206,6 +230,7 @@ async function run() {
     await expectToolError("list_documents", { collectionId: collection.data.id }, "permission_denied");
     await expectToolError("read_document", { documentId }, "permission_denied");
     await expectToolError("create_profile_draft", { ...draftInput, draftId: randomUUID() }, "permission_denied");
+    await expectToolError("save_profile_version", publication, "permission_denied");
     check(!(await admin.from("connection_grants").update({ permissions: ["read_examples", "read_profiles", "write_profiles"] }).eq("id", info.structuredContent.connectionId).eq("owner_id", userId)).error, "Permission fixture restore failed.");
     console.info("PASS OAuth example tools, collection/document/section pagination, two-account isolation and live permission changes");
     for (const token of [webToken, issued.data.id_token]) {
