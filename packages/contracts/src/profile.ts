@@ -48,11 +48,25 @@ export const createProfileDraftSchema = z.strictObject({
   message: "A draft must fit within 48 KiB including preview and evidence.",
 });
 export const getProfileDraftSchema = z.strictObject({ draftId: id });
+export const profileChangesSchema = z.strictObject({
+  fields: z.array(z.string()).max(10), rulesAdded: z.array(z.string()).max(20),
+  rulesRemoved: z.array(z.string()).max(20), rulesChanged: z.array(z.string()).max(20), evidenceChanged: z.boolean(),
+});
+export const proposeProfileUpdateSchema = z.strictObject({
+  draftId: id, profileId: id, baseVersionId: id, payload: taskProfileSchema,
+  preview: z.string().max(6000).refine(value => !value.includes("\0")), reason: text(1000),
+}).refine(input => new TextEncoder().encode(JSON.stringify(input)).byteLength <= 48 * 1024, {
+  message: "An update proposal must fit within 48 KiB.",
+});
 export const profileDraftSchema = z.strictObject({
   id: z.uuid(), status: z.enum(["pending_review", "published", "rejected"]), schemaVersion: z.literal(1),
   payload: taskProfileSchema, preview: z.string().max(6000),
   draftHash: z.string().regex(/^[a-f0-9]{64}$/), createdAt: z.iso.datetime({ offset: true }),
+  profileId: z.uuid().nullable().optional(), baseVersionId: z.uuid().nullable().optional(),
+  changeReason: z.string().max(1000).nullable().optional(), changes: profileChangesSchema.nullable().optional(),
+  restoredFromVersionId: z.uuid().nullable().optional(),
 });
+export type ProposeProfileUpdate = z.infer<typeof proposeProfileUpdateSchema>;
 export type TaskProfile = z.infer<typeof taskProfileSchema>;
 export type CreateProfileDraft = z.infer<typeof createProfileDraftSchema>;
 export type ProfileDraft = z.infer<typeof profileDraftSchema>;

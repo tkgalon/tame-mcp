@@ -12,6 +12,19 @@ export const findProfilesSchema = z.strictObject({
   page: z.number().int().min(1).max(10_000).default(1),
 });
 export const getProfileSchema = z.strictObject({ profileId: id });
+export const getProfileVersionSchema = z.strictObject({ profileId: id, versionId: id });
+export const listProfileVersionsSchema = z.strictObject({ profileId: id, before: z.number().int().positive().max(2_147_483_647).optional() });
+export const rollbackProfileSchema = z.strictObject({
+  profileId: id, targetVersionId: id, baseVersionId: id, reason: z.string().trim().min(1).max(1000).refine(value => !value.includes("\0")),
+  idempotencyKey: id, approval: z.literal("user_requested"),
+});
+export const profileVersionEntrySchema = z.strictObject({
+  versionId: z.uuid(), versionNumber: z.number().int().positive(), approvedAt: z.iso.datetime({ offset: true }),
+  approvalChannel: z.enum(["chat", "web"]), changeReason: z.string().max(1000).nullable(), restoredFromVersionId: z.uuid().nullable(),
+});
+export const profileVersionsResultSchema = z.strictObject({
+  items: z.array(profileVersionEntrySchema).max(20), nextBefore: z.number().int().positive().nullable(),
+});
 export const profileSummarySchema = z.strictObject({
   id: z.uuid(), name: z.string().min(1).max(120), description: z.string().max(2000),
   versionId: z.uuid(), versionNumber: z.number().int().positive(), approvedAt: z.iso.datetime({ offset: true }),
@@ -19,6 +32,7 @@ export const profileSummarySchema = z.strictObject({
 export const activeProfileSchema = z.strictObject({
   ...profileSummarySchema.shape,
   schemaVersion: z.literal(1), payload: taskProfileSchema, approvalChannel: z.enum(["chat", "web"]),
+  changeReason: z.string().max(1000).nullable().optional(), restoredFromVersionId: z.uuid().nullable().optional(),
   evidenceStatus: z.array(z.strictObject({
     ruleId: z.string(), documentId: z.uuid(), sectionId: z.uuid(),
     status: z.enum(["available", "changed", "unavailable"]),
@@ -40,3 +54,4 @@ export const savedProfileVersionSchema = z.strictObject({
 });
 export type SaveProfileVersion = z.infer<typeof saveProfileVersionSchema>;
 export type FindProfiles = z.input<typeof findProfilesSchema>;
+export type RollbackProfile = z.infer<typeof rollbackProfileSchema>;
