@@ -1,38 +1,38 @@
 {
-  "name": "tame-mcp",
+  "name": "tame",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@10.34.9",
   "engines": {
     "node": ">=22.15.0 <23"
   },
   "scripts": {
-    "dev": "pnpm dev:web",
-    "dev:web": "pnpm build:packages && pnpm --filter @tame/web dev",
-    "dev:mcp": "pnpm build:packages && pnpm --filter @tame/mcp dev",
-    "dev:worker": "pnpm build:packages && pnpm --filter @tame/worker dev",
-    "dev:packages": "pnpm --filter @tame/contracts dev",
-    "build:packages": "pnpm --filter './packages/**' --recursive build",
-    "build": "pnpm --recursive build",
+    "build:packages": "tsc --build packages/contracts packages/extraction packages/core",
+    "dev": "pnpm build:packages && pnpm --filter @tame/web dev",
+    "build": "pnpm build:packages && pnpm --filter @tame/web build",
     "typecheck": "pnpm build:packages && pnpm --recursive typecheck",
-    "check": "pnpm typecheck && pnpm build",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm build:packages && vitest run --project unit",
+    "test:integration": "pnpm build:packages && vitest run --project integration",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
-    "db:migrate": "supabase migration up --local",
     "db:reset": "supabase db reset --local",
-    "test:db": "node --test --test-concurrency=1 scripts/*.test.mjs",
-    "test:upload": "pnpm --filter @tame/worker build && node scripts/upload.integration.mjs",
-    "test:parsers": "pnpm --filter @tame/contracts test && pnpm --filter @tame/parsers test",
-    "test:worker": "pnpm --filter @tame/worker test",
-    "test:worker:integration": "pnpm --filter @tame/worker build && node scripts/worker.integration.mjs",
-    "test:mcp": "pnpm --filter @tame/mcp test",
-    "test:oauth": "pnpm --filter @tame/mcp build && node scripts/oauth.integration.mjs",
-    "oauth:setup:codex": "node scripts/setup-local-codex.mjs"
+    "db:types": "kysely-codegen --dialect postgres --url postgresql://postgres:postgres@127.0.0.1:54322/postgres --include-pattern 'public.*' --out-file packages/core/src/db/generated.ts"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
     "@types/node": "22.20.5",
-    "typescript": "5.9.3",
+    "eslint": "10.14.0",
+    "kysely-codegen": "0.20.0",
     "pg": "8.23.1",
-    "supabase": "2.122.0"
+    "prettier": "3.9.10",
+    "supabase": "2.122.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.1",
+    "vitest": "5.0.5"
   }
 }

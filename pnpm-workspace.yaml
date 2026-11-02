@@ -3,7 +3,7 @@ packages:
   - packages/*
 
 onlyBuiltDependencies:
-  - '@tailwindcss/oxide'
+  - "@tailwindcss/oxide"
   - esbuild
   - sharp
   - supabase
