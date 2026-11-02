@@ -18,14 +18,19 @@ export async function parseDocxDocument(bytes: Uint8Array): Promise<ExtractionRe
   const warnings = new Set<ExtractionWarning>(["layout_approximate"]);
   try {
     const buffer = await boundedDocxArchive(bytes);
-    const converted = await mammoth.convertToHtml({ buffer }, {
-      externalFileAccess: false, includeEmbeddedStyleMap: false,
-      convertImage: mammoth.images.imgElement(async () => {
-        warnings.add("images_not_extracted");
-        return { src: "" };
-      }),
-    });
-    if (converted.messages.some(message => message.type === "error")) throw new ExtractionInputError("invalid_document");
+    const converted = await mammoth.convertToHtml(
+      { buffer },
+      {
+        externalFileAccess: false,
+        includeEmbeddedStyleMap: false,
+        convertImage: mammoth.images.imgElement(async () => {
+          warnings.add("images_not_extracted");
+          return { src: "" };
+        }),
+      },
+    );
+    if (converted.messages.some((message) => message.type === "error"))
+      throw new ExtractionInputError("invalid_document");
     if (converted.messages.length) warnings.add("conversion_warning");
     if (converted.value.length > MAX_HTML_CHARACTERS) throw new ExtractionInputError("text_limit_exceeded");
     const root = parseFragment(converted.value);
@@ -36,14 +41,20 @@ export async function parseDocxDocument(bytes: Uint8Array): Promise<ExtractionRe
     let visited = 0;
     type Node = DefaultTreeAdapterMap["node"];
     type Event = { node: Node; exit: boolean; headingStart?: number };
-    const stack: Event[] = [...root.childNodes].reverse().map(node => ({ node, exit: false }));
+    const stack: Event[] = [...root.childNodes].reverse().map((node) => ({ node, exit: false }));
     const lists: Array<{ ordered: boolean; next: number }> = [];
-    const newline = () => { if (text.text && !text.text.endsWith("\n")) text.append("\n"); };
+    const newline = () => {
+      if (text.text && !text.text.endsWith("\n")) text.append("\n");
+    };
     while (stack.length) {
       const event = stack.pop()!;
       const node = event.node;
-      if (!event.exit && ++visited > MAX_HTML_NODES) throw new ExtractionInputError("complexity_limit_exceeded");
-      if ("value" in node && node.nodeName === "#text") { text.append(node.value); continue; }
+      if (!event.exit && ++visited > MAX_HTML_NODES)
+        throw new ExtractionInputError("complexity_limit_exceeded");
+      if ("value" in node && node.nodeName === "#text") {
+        text.append(node.value);
+        continue;
+      }
       if (!("tagName" in node)) continue;
       const tag = node.tagName;
       if (["script", "style"].includes(tag)) continue;
@@ -69,7 +80,7 @@ export async function parseDocxDocument(bytes: Uint8Array): Promise<ExtractionRe
       if (tag === "br") text.append("\n");
       if (tag === "img") {
         warnings.add("images_not_extracted");
-        const alt = node.attrs.find(attribute => attribute.name === "alt")?.value;
+        const alt = node.attrs.find((attribute) => attribute.name === "alt")?.value;
         if (alt) text.append(`[Image: ${alt}]`);
       }
       stack.push({ node, exit: true, ...(isHeading ? { headingStart: text.text.length } : {}) });
@@ -79,6 +90,10 @@ export async function parseDocxDocument(bytes: Uint8Array): Promise<ExtractionRe
     if (text.text.length > blockStart) blocks.push({ start: blockStart, end: text.text.length, heading });
     return buildExtraction({ ...base, text: text.text }, blocks, warnings);
   } catch (error) {
-    return extractionFailure(base, error instanceof ExtractionInputError ? error.code : "invalid_document", warnings);
+    return extractionFailure(
+      base,
+      error instanceof ExtractionInputError ? error.code : "invalid_document",
+      warnings,
+    );
   }
 }
