@@ -58,11 +58,7 @@ secure_password_change = true
 [auth.oauth_server]
 enabled = true
 authorization_url_path = "/oauth/consent"
-allow_dynamic_registration = false
-
-[auth.hook.custom_access_token]
-enabled = true
-uri = "pg-functions://postgres/public/mcp_access_token_hook"
+allow_dynamic_registration = true
 
 [edge_runtime]
 enabled = false
