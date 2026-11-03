@@ -218,3 +218,11 @@ td form {
   font-size: 1.75rem;
   font-weight: 700;
 }
+
+.dropzone {
+  padding: 1rem;
+  border: 2px dashed var(--line);
+}
+.dropzone.dragging {
+  background: var(--surface);
+}

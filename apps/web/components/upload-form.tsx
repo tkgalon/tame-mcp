@@ -9,6 +9,7 @@ export function UploadForm({ collectionId }: { collectionId: string }) {
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
   const [pending, setPending] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [messages, setMessages] = useState<string[]>([]);
 
   async function upload(file: File): Promise<string> {
@@ -44,14 +45,35 @@ export function UploadForm({ collectionId }: { collectionId: string }) {
     >
       <fieldset disabled={pending}>
         <legend>Upload examples</legend>
-        <label htmlFor="documents">Files</label>
-        <input
-          id="documents"
-          type="file"
-          multiple
-          accept={DOCUMENT_ACCEPT}
-          onChange={(event) => setFiles([...(event.target.files ?? [])])}
-        />
+        <div
+          className={dragging ? "dropzone dragging" : "dropzone"}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setDragging(true);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDragging(false);
+            if (!pending) setFiles([...event.dataTransfer.files]);
+          }}
+        >
+          <p>Drop files here, or choose them.</p>
+          <label htmlFor="documents">Files</label>
+          <input
+            id="documents"
+            type="file"
+            multiple
+            accept={DOCUMENT_ACCEPT}
+            onChange={(event) => setFiles([...(event.target.files ?? [])])}
+          />
+        </div>
+        {files.length > 0 && (
+          <p>
+            Selected {files.length} {files.length === 1 ? "file" : "files"}:{" "}
+            {files.map((file) => file.name).join(", ")}
+          </p>
+        )}
         <p>PDF, DOCX, TXT or Markdown, up to 10 MiB each. Scanned PDFs without text cannot be read yet.</p>
         <button type="submit" disabled={files.length === 0}>
           {pending ? "Uploading…" : "Upload"}
