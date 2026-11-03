@@ -1,4 +1,6 @@
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+// pdfjs loads its worker with a dynamic import that bundlers cannot trace, so register it up front
+import "pdfjs-dist/legacy/build/pdf.worker.mjs";
 import type { TextItem } from "pdfjs-dist/types/src/display/api.js";
 import type { ExtractionResult, ExtractionWarning } from "@tame/contracts";
 import { binaryDocument, ExtractionInputError, TextBudget } from "./binary.js";
