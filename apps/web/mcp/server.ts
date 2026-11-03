@@ -47,6 +47,12 @@ async function run(action: () => Promise<object>): Promise<CallToolResult> {
 
 export function createMcpServer(core: Core, principal: Principal): McpServer {
   const owner = principal.ownerId;
+  // Unapproved accounts still connect, so the agent can relay how to get access instead of retrying login
+  const use = (action: () => Promise<object>) =>
+    run(async () => {
+      await core.account.requireAccess(owner);
+      return action();
+    });
   const server = new McpServer({ name: "tame", version: "1.0.0" }, { instructions: SERVER_INSTRUCTIONS });
 
   server.registerTool(
@@ -57,7 +63,7 @@ export function createMcpServer(core: Core, principal: Principal): McpServer {
       inputSchema: useProfileInput,
       annotations: readOnly,
     },
-    (input) => run(() => core.profiles.use(owner, input)),
+    (input) => use(() => core.profiles.use(owner, input)),
   );
 
   server.registerTool(
@@ -68,7 +74,7 @@ export function createMcpServer(core: Core, principal: Principal): McpServer {
       inputSchema: listExamplesInput,
       annotations: readOnly,
     },
-    (input) => run(() => core.examples.list(owner, input.collectionId)),
+    (input) => use(() => core.examples.list(owner, input.collectionId)),
   );
 
   server.registerTool(
@@ -79,7 +85,7 @@ export function createMcpServer(core: Core, principal: Principal): McpServer {
       inputSchema: readExampleInput,
       annotations: readOnly,
     },
-    (input) => run(() => core.examples.read(owner, input.documentId, input.after)),
+    (input) => use(() => core.examples.read(owner, input.documentId, input.after)),
   );
 
   server.registerTool(
@@ -91,7 +97,7 @@ export function createMcpServer(core: Core, principal: Principal): McpServer {
       annotations: { ...writes, idempotentHint: false },
     },
     (input) =>
-      run(async () => ({
+      use(async () => ({
         ...(await core.profiles.draft(owner, input)),
         status: "not_active",
         nextStep: DRAFT_NEXT_STEP,
@@ -106,7 +112,7 @@ export function createMcpServer(core: Core, principal: Principal): McpServer {
       inputSchema: publishProfileInput,
       annotations: writes,
     },
-    (input) => run(() => core.profiles.publish(owner, input.draftId)),
+    (input) => use(() => core.profiles.publish(owner, input.draftId)),
   );
 
   server.registerTool(
@@ -117,7 +123,7 @@ export function createMcpServer(core: Core, principal: Principal): McpServer {
       inputSchema: profileHistoryInput,
       annotations: readOnly,
     },
-    (input) => run(() => core.profiles.history(owner, input)),
+    (input) => use(() => core.profiles.history(owner, input)),
   );
 
   server.registerTool(
@@ -128,7 +134,7 @@ export function createMcpServer(core: Core, principal: Principal): McpServer {
       inputSchema: rollbackProfileInput,
       annotations: { ...writes, idempotentHint: false },
     },
-    (input) => run(() => core.profiles.rollback(owner, input)),
+    (input) => use(() => core.profiles.rollback(owner, input)),
   );
 
   return server;

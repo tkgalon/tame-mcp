@@ -1,5 +1,6 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { TameError } from "@tame/core";
 import type { Core } from "@tame/core";
 import { describe, expect, it, vi } from "vitest";
 import { DRAFT_NEXT_STEP, SERVER_INSTRUCTIONS, createMcpServer } from "../mcp/server";
@@ -30,8 +31,10 @@ const payload = {
   evidence: [],
 };
 
+const approved = { requireAccess: async () => {} } as unknown as Core["account"];
+
 async function connect(core: Partial<Core>) {
-  const server = createMcpServer(core as Core, principal);
+  const server = createMcpServer({ account: approved, ...core } as Core, principal);
   const client = new Client({ name: "test", version: "1.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
@@ -58,6 +61,26 @@ describe("draft_profile", () => {
     expect(DRAFT_NEXT_STEP).toContain("Match the user's language and tone");
     expect(DRAFT_NEXT_STEP).toContain("asking for confirmation");
     expect(DRAFT_NEXT_STEP).toContain("still asks for changes is not approval");
+  });
+});
+
+describe("access", () => {
+  it("tells an unapproved account how to get access without running the tool", async () => {
+    const use = vi.fn();
+    const requireAccess = vi.fn(async () => {
+      throw new TameError("not_approved", "This TAME account is not approved yet.");
+    });
+    const client = await connect({
+      account: { requireAccess } as unknown as Core["account"],
+      profiles: { use } as unknown as Core["profiles"],
+    });
+
+    const result = await client.callTool({ name: "use_profile", arguments: { task: "write a lab report" } });
+
+    expect(requireAccess).toHaveBeenCalledWith(principal.ownerId);
+    expect(use).not.toHaveBeenCalled();
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain("not_approved");
   });
 });
 
