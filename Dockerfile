@@ -20,10 +20,13 @@ RUN NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 \
     pnpm build
 
 FROM node:22.15.0-bookworm-slim
+# The Supabase pooler certificate chains to Supabase's own root, so database URLs can use sslmode=verify-full
 ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
-    PORT=8080
+    PORT=8080 \
+    NODE_EXTRA_CA_CERTS=/app/certs/supabase-ca.crt
 WORKDIR /app
+COPY supabase/certs/prod-ca-2021.crt certs/supabase-ca.crt
 COPY --from=build --chown=node:node /repo/apps/web/.next/standalone ./
 COPY --from=build --chown=node:node /repo/apps/web/.next/static ./apps/web/.next/static
 USER node
