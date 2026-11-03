@@ -1,5 +1,11 @@
 export type TameErrorCode =
-  "not_found" | "invalid_input" | "invalid_evidence" | "version_conflict" | "conflict" | "unavailable";
+  | "not_found"
+  | "invalid_input"
+  | "invalid_evidence"
+  | "version_conflict"
+  | "conflict"
+  | "unavailable"
+  | "not_approved";
 
 // Messages are written for the agent or user who reads them, so they say what to do next
 export class TameError extends Error {

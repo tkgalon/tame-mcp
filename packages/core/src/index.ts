@@ -1,4 +1,4 @@
-import { isSessionActive, removeAccountFiles } from "./account.js";
+import { hasAccess, isSessionActive, removeAccountFiles, requireAccess } from "./account.js";
 import { createCollection, deleteCollection, getCollection, listCollections } from "./collections.js";
 import type { CoreContext } from "./context.js";
 import {
@@ -69,7 +69,7 @@ export function createCore(context: CoreContext) {
       listDrafts,
       removeDraft: deleteDraft,
     }),
-    account: bind(context, { isSessionActive, removeFiles: removeAccountFiles }),
+    account: bind(context, { hasAccess, requireAccess, isSessionActive, removeFiles: removeAccountFiles }),
   };
 }
 
