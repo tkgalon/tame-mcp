@@ -11,8 +11,8 @@ export function DeleteAccountForm() {
     <form action={action}>
       <fieldset disabled={pending}>
         <legend>Delete account</legend>
-        <label htmlFor="password">Current password</label>
-        <input id="password" name="password" type="password" autoComplete="current-password" required />
+        <label htmlFor="email">Type your account email</label>
+        <input id="email" name="email" type="email" autoComplete="off" required maxLength={254} />
         <label className="check">
           <input
             type="checkbox"
