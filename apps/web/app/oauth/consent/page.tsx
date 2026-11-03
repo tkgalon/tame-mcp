@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getUser } from "../../../lib/session";
+import { getUser, hasAccess } from "../../../lib/session";
 import { createSessionClient } from "../../../lib/supabase";
 import { decideConsent } from "./actions";
 import { authorizationIdFrom } from "./path";
@@ -21,7 +21,9 @@ export default async function ConsentPage({
   const params = await searchParams;
   const id = authorizationIdFrom(params.authorization_id);
   if (!id) return unavailable;
-  if (!(await getUser())) redirect(`/login?authorization_id=${id}`);
+  const user = await getUser();
+  if (!user) redirect(`/login?authorization_id=${id}`);
+  if (!(await hasAccess(user.id))) redirect("/pending");
 
   const supabase = await createSessionClient({ readOnly: true });
   const { data, error } = await supabase.auth.oauth.getAuthorizationDetails(id);

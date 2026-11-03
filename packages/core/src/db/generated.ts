@@ -23,6 +23,11 @@ export type JsonValue = JsonArray | JsonObject | JsonPrimitive;
 
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
+export interface AllowedEmails {
+  created_at: Generated<Timestamp>;
+  email: string;
+}
+
 export interface Collections {
   created_at: Generated<Timestamp>;
   id: Generated<string>;
@@ -91,6 +96,7 @@ export interface ProfileVersions {
 }
 
 export interface DB {
+  allowed_emails: AllowedEmails;
   collections: Collections;
   document_sections: DocumentSections;
   documents: Documents;

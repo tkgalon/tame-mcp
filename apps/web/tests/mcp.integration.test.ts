@@ -136,6 +136,7 @@ afterAll(async () => {
   if (userId) await admin.auth.admin.deleteUser(userId);
   // Deleting the user removes consents and sessions, but registered clients stay unless removed
   for (const clientId of registeredClients) await admin.auth.admin.oauth.deleteClient(clientId);
+  await db.deleteFrom("allowed_emails").where("email", "=", email).execute();
   await db.destroy();
 });
 
@@ -158,6 +159,11 @@ describe("MCP over OAuth", () => {
       "rollback_profile",
       "use_profile",
     ]);
+    const blocked = await client.callTool({ name: "use_profile", arguments: { task: "CTF write-up" } });
+    expect(blocked.isError).toBe(true);
+    expect(JSON.stringify(blocked.content)).toContain("not_approved");
+
+    await db.insertInto("allowed_emails").values({ email }).execute();
     const used = await client.callTool({ name: "use_profile", arguments: { task: "CTF write-up" } });
     expect(used.structuredContent).toMatchObject({ status: "no_profiles" });
     await client.close();
