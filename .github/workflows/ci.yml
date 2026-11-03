@@ -42,6 +42,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm db:start
+        env:
+          # Google sign-in is not exercised in CI, but the config needs values
+          SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID: ci-unused
+          SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET: ci-unused
       - name: Write local app settings
         run: |
           status=$(pnpm exec supabase status -o json)
