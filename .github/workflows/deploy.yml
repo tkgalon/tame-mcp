@@ -1,0 +1,50 @@
+name: Deploy
+
+# Runs only after CI passed for a push to main, and deploys exactly the commit CI checked
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  cloud-run:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      IMAGE: asia-southeast1-docker.pkg.dev/tame-mcp/tame/web:${{ github.event.workflow_run.head_sha }}
+      SITE_URL: https://tame-119708107948.asia-southeast1.run.app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/119708107948/locations/global/workloadIdentityPools/github/providers/tame-mcp
+          service_account: tame-deploy@tame-mcp.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker asia-southeast1-docker.pkg.dev --quiet
+      - run: docker build -t "$IMAGE" . && docker push "$IMAGE"
+      # The invoker IAM check was turned off once by the project owner and later deploys keep that setting
+      - name: Deploy to Cloud Run
+        run: >-
+          gcloud run deploy tame
+          --project tame-mcp
+          --region asia-southeast1
+          --image "$IMAGE"
+          --service-account tame-run@tame-mcp.iam.gserviceaccount.com
+          --cpu 1 --memory 1Gi
+          --min-instances 0 --max-instances 1
+          --concurrency 20 --timeout 60
+          --set-env-vars "NEXT_PUBLIC_SUPABASE_URL=https://pacmmavizulseargaegw.supabase.co,NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${{ vars.SUPABASE_PUBLISHABLE_KEY }},TAME_SITE_URL=$SITE_URL"
+          --set-secrets "TAME_DATABASE_URL=tame-database-url:latest,TAME_SUPABASE_SECRET_KEY=tame-supabase-secret-key:latest"
+      - run: curl -fsS --retry 5 --retry-delay 5 "$SITE_URL/api/health"
