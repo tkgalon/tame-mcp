@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { documentStyleSchema } from "./style.js";
 
 export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 export const MAX_EXTRACTED_CHARACTERS = 100_000;
@@ -82,6 +83,7 @@ export const readyExtractionSchema = z
     ...extractionBase,
     status: z.literal("ready"),
     sections: z.array(extractedSectionSchema).min(1).max(MAX_EXTRACTION_SECTIONS),
+    style: documentStyleSchema.optional(),
   })
   .superRefine((result, context) => {
     let nextOffset = 0;
