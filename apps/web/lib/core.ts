@@ -20,6 +20,11 @@ function supabaseFiles(): FileStore {
       if (error) return null;
       return new Uint8Array(await data.arrayBuffer());
     },
+    async createDownloadUrl(path, fileName, expiresInSeconds) {
+      const { data, error } = await storage().createSignedUrl(path, expiresInSeconds, { download: fileName });
+      if (error) throw new Error("Unable to prepare the download.");
+      return data.signedUrl;
+    },
     async remove(paths) {
       if (paths.length === 0) return;
       const { error } = await storage().remove(paths);

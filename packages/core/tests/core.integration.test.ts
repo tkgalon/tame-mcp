@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "kysely";
 import { extractDocument } from "@tame/extraction";
-import type { ProfilePayload } from "@tame/contracts";
+import type { DocumentStyle, ProfilePayload } from "@tame/contracts";
 import { createCore, createDatabase, TameError } from "../src/index";
 import type { FileStore } from "../src/index";
 
@@ -12,9 +12,24 @@ const stored = new Map<string, Uint8Array>();
 const files: FileStore = {
   createUploadUrl: async (path) => `memory://${path}`,
   download: async (path) => stored.get(path) ?? null,
+  createDownloadUrl: async (path, fileName, seconds) =>
+    `memory://${path}?name=${fileName}&expires=${seconds}`,
   remove: async (paths) => paths.forEach((path) => stored.delete(path)),
 };
 const core = createCore({ db, files, extract: extractDocument });
+
+const measured: DocumentStyle = {
+  source: "docx",
+  page: null,
+  textStyles: [],
+  fills: [{ color: "#e7f1fb", count: 1, sample: "Q1" }],
+  tables: 1,
+  images: 0,
+  rules: 0,
+  header: [],
+  footer: [],
+  pagesMeasured: 0,
+};
 
 const owner = crypto.randomUUID();
 const stranger = crypto.randomUUID();
@@ -94,6 +109,51 @@ describe("documents and examples", () => {
     expect(document.errorCode).not.toBeNull();
   });
 
+  it("returns the style summary with the first read and a download link to the original", async () => {
+    const collection = await core.collections.create(owner, "Styled");
+    const document = await uploadText(owner, collection.id, "lab-07.md", writeup);
+    await db
+      .updateTable("documents")
+      .set({ style: JSON.stringify(measured) })
+      .where("id", "=", document.id)
+      .execute();
+
+    const first = await core.examples.read(owner, document.id);
+    expect(first.document.style).toEqual(measured);
+    const later = await core.examples.read(owner, document.id, 0);
+    expect("style" in later.document).toBe(false);
+
+    const file = await core.examples.file(owner, document.id);
+    expect(file.url).toBe(`memory://${owner}/${document.id}/original?name=lab-07.md&expires=600`);
+    expect(await errorCode(core.examples.file(stranger, document.id))).toBe("not_found");
+  });
+
+  it("reads a document again when an older parser read it, keeping its text if that fails", async () => {
+    const collection = await core.collections.create(owner, "Outdated");
+    const document = await uploadText(owner, collection.id, "lab-07.md", writeup);
+    expect(document.outdated).toBe(false);
+    await db
+      .updateTable("documents")
+      .set({ parser_version: "markdown-v0" })
+      .where("id", "=", document.id)
+      .execute();
+    expect((await core.documents.list(owner, collection.id))[0]?.outdated).toBe(true);
+
+    const reread = await core.documents.extract(owner, document.id);
+    expect(reread.outdated).toBe(false);
+    expect(reread.status).toBe("ready");
+
+    await db
+      .updateTable("documents")
+      .set({ parser_version: "markdown-v0" })
+      .where("id", "=", document.id)
+      .execute();
+    stored.set(`${owner}/${document.id}/original`, new TextEncoder().encode(" ".repeat(writeup.length)));
+    const kept = await core.documents.extract(owner, document.id);
+    expect(kept.status).toBe("ready");
+    expect((await core.examples.read(owner, document.id)).sections.length).toBeGreaterThan(0);
+  });
+
   it("removes stored files when a document is deleted", async () => {
     const collection = await core.collections.create(owner, "Temporary");
     const document = await uploadText(owner, collection.id, "temp.txt", "temporary text");
@@ -108,6 +168,39 @@ describe("profile lifecycle", () => {
   beforeAll(async () => {
     const collection = await core.collections.create(owner, "Profile sources");
     documentId = (await uploadText(owner, collection.id, "lab-07.md", writeup)).id;
+  });
+
+  it("matches evidence copied with or without the bold markers extraction adds", async () => {
+    const original = await db
+      .selectFrom("document_sections")
+      .where("document_id", "=", documentId)
+      .select(["ordinal", "content"])
+      .execute();
+    await db
+      .updateTable("document_sections")
+      .set({ content: "Pada praktikum ini, **saya memeriksa** logical image." })
+      .where("document_id", "=", documentId)
+      .execute();
+    const plain = payload(documentId, {
+      name: "Marker check",
+      evidence: [{ ruleId: "first-person", documentId, excerpt: "saya memeriksa logical image" }],
+    });
+    const marked = payload(documentId, {
+      name: "Marker check",
+      evidence: [{ ruleId: "first-person", documentId, excerpt: "**saya memeriksa** logical image" }],
+    });
+    for (const candidate of [plain, marked]) {
+      const draft = await core.profiles.draft(owner, { payload: candidate, preview: "" });
+      await core.profiles.removeDraft(owner, draft.draftId);
+    }
+    for (const section of original) {
+      await db
+        .updateTable("document_sections")
+        .set({ content: section.content })
+        .where("document_id", "=", documentId)
+        .where("ordinal", "=", section.ordinal)
+        .execute();
+    }
   });
 
   it("rejects evidence that is not verbatim source text", async () => {
@@ -134,6 +227,7 @@ describe("profile lifecycle", () => {
     if (used.status === "ready") {
       expect(used.versionId).toBe(v1.versionId);
       expect(used.examples[0]?.excerpt).toBe("saya memeriksa logical image");
+      expect(used.sources).toEqual([expect.objectContaining({ documentId, mediaType: expect.any(String) })]);
       expect(used.workingRules.length).toBeGreaterThan(0);
     }
 

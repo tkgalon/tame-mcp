@@ -29,6 +29,8 @@ export const readExampleInput = z.strictObject({
     .describe("Continue from the nextAfter value of the previous call"),
 });
 
+export const getExampleFileInput = z.strictObject({ documentId: idSchema });
+
 export const draftProfileInput = z
   .strictObject({
     payload: profilePayloadSchema,
@@ -74,6 +76,7 @@ export const rollbackProfileInput = z.strictObject({
 export type UseProfileInput = z.infer<typeof useProfileInput>;
 export type ListExamplesInput = z.infer<typeof listExamplesInput>;
 export type ReadExampleInput = z.infer<typeof readExampleInput>;
+export type GetExampleFileInput = z.infer<typeof getExampleFileInput>;
 export type DraftProfileInput = z.infer<typeof draftProfileInput>;
 export type PublishProfileInput = z.infer<typeof publishProfileInput>;
 export type ProfileHistoryInput = z.infer<typeof profileHistoryInput>;

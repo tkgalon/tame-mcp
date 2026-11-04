@@ -33,7 +33,12 @@ const user = createClient(supabaseUrl, env["NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 const db = createDatabase(env["TAME_DATABASE_URL"]!);
 const core = createCore({
   db,
-  files: { createUploadUrl: async () => "", download: async () => null, remove: async () => {} },
+  files: {
+    createUploadUrl: async () => "",
+    download: async () => null,
+    createDownloadUrl: async () => "",
+    remove: async () => {},
+  },
   extract: async () => {
     throw new Error("Not used in this test.");
   },
@@ -152,6 +157,7 @@ describe("MCP over OAuth", () => {
     const tools = await client.listTools();
     expect(tools.tools.map((tool) => tool.name).sort()).toEqual([
       "draft_profile",
+      "get_example_file",
       "list_examples",
       "profile_history",
       "publish_profile",
