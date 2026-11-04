@@ -6,7 +6,9 @@ export const MAX_DOCX_ENTRIES = 1_000;
 export const MAX_DOCX_ENTRY_BYTES = 8 * 1024 * 1024;
 export const MAX_DOCX_EXPANDED_BYTES = 32 * 1024 * 1024;
 
-export async function boundedDocxArchive(bytes: Uint8Array): Promise<Buffer> {
+export type DocxArchive = { buffer: Buffer; files: Record<string, Uint8Array> };
+
+export async function boundedDocxArchive(bytes: Uint8Array): Promise<DocxArchive> {
   const zip = await new Promise<yauzl.ZipFile>((resolve, reject) => {
     yauzl.fromBuffer(
       Buffer.from(bytes),
@@ -78,7 +80,7 @@ export async function boundedDocxArchive(bytes: Uint8Array): Promise<Buffer> {
         // Repack the validated bytes so the converter cannot interpret a different ZIP directory.
         const canonical = zipSync(files, { level: 0 });
         settled = true;
-        resolve(Buffer.from(canonical));
+        resolve({ buffer: Buffer.from(canonical), files });
       } catch (error) {
         fail(error);
       }

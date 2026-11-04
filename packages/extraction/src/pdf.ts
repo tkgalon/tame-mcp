@@ -2,12 +2,14 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 // pdfjs loads its worker with a dynamic import that bundlers cannot trace, so register it up front
 import "pdfjs-dist/legacy/build/pdf.worker.mjs";
 import type { TextItem } from "pdfjs-dist/types/src/display/api.js";
+import { currentParserVersion, documentStyleSchema } from "@tame/contracts";
 import type { ExtractionResult, ExtractionWarning } from "@tame/contracts";
 import { binaryDocument, ExtractionInputError, TextBudget } from "./binary.js";
 import { buildExtraction, extractionFailure } from "./core.js";
 import type { ExtractionBlock } from "./core.js";
+import { MAX_STYLE_PAGES, PdfStyleCollector } from "./pdf-style.js";
 
-export const PDF_PARSER_VERSION = "pdf-v1";
+export const PDF_PARSER_VERSION = currentParserVersion("application/pdf");
 export const MAX_PDF_PAGES = 200;
 export const MAX_PDF_TEXT_ITEMS = 100_000;
 
@@ -29,18 +31,28 @@ export async function parsePdfDocument(bytes: Uint8Array): Promise<ExtractionRes
       disableFontFace: true,
       enableXfa: false,
       disableAutoFetch: true,
+      // Keeps real font names such as Arial-BoldMT, which the style summary reports
+      fontExtraProperties: true,
     });
     const pdf = await task.promise;
     if (pdf.numPages > MAX_PDF_PAGES) throw new ExtractionInputError("page_limit_exceeded");
     const text = new TextBudget();
     const blocks: ExtractionBlock[] = [];
     let itemCount = 0;
+    // The text is the main result, so a page that cannot be measured only drops the style summary
+    let style: PdfStyleCollector | null = new PdfStyleCollector();
     for (let number = 1; number <= pdf.numPages; number++) {
       const page = await pdf.getPage(number);
       const start = text.text.length;
       let previous: TextItem | undefined;
       try {
         const content = await page.getTextContent();
+        if (style && number <= MAX_STYLE_PAGES) {
+          const items = content.items.filter((item): item is TextItem => "str" in item);
+          await style.addPage(page, items).catch(() => {
+            style = null;
+          });
+        }
         for (const item of content.items) {
           if (++itemCount > MAX_PDF_TEXT_ITEMS) throw new ExtractionInputError("complexity_limit_exceeded");
           if (!("str" in item) || !item.str) continue;
@@ -66,7 +78,9 @@ export async function parsePdfDocument(bytes: Uint8Array): Promise<ExtractionRes
     }
     if (!text.text.trim())
       return { ...base, status: "needs_ocr", errorCode: "no_extractable_text", warnings: [...warnings] };
-    return buildExtraction({ ...base, text: text.text }, blocks, warnings);
+    const result = buildExtraction({ ...base, text: text.text }, blocks, warnings);
+    const measured = style && documentStyleSchema.safeParse((style as PdfStyleCollector).result()).data;
+    return result.status === "ready" && measured ? { ...result, style: measured } : result;
   } catch (error) {
     const code =
       error instanceof ExtractionInputError

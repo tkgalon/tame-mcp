@@ -183,3 +183,122 @@ test("DOCX ignores external images and reports their omission without opening th
   assert.ok(result.warnings.includes("images_not_extracted"));
   assert.match(result.sections[0].content, /Finding/);
 });
+
+const run = (text, props = "") => `<w:r><w:rPr>${props}</w:rPr><w:t xml:space="preserve">${text}</w:t></w:r>`;
+
+test("DOCX marks bold text, keeps table rows together and numbers images", async () => {
+  const image =
+    '<w:r><w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:docPr id="1" name="Screenshot" descr="Inbox header"/></wp:inline></w:drawing></w:r>';
+  const result = validate(
+    await parseDocxDocument(
+      docx(
+        `<w:p>${run("Answer: ")}${run("billing@example.test ", "<w:b/>")}${run("", "<w:b/>")}</w:p>` +
+          heading(1, "Q1") +
+          "<w:tbl><w:tr><w:tc>" +
+          paragraph("No") +
+          "</w:tc><w:tc>" +
+          paragraph("Answer") +
+          "</w:tc></w:tr><w:tr><w:tc>" +
+          paragraph("1") +
+          "</w:tc><w:tc>" +
+          paragraph("a|b") +
+          paragraph("second line") +
+          "</w:tc></w:tr></w:tbl>" +
+          `<w:p>${image}</w:p>`,
+      ),
+    ),
+  );
+  assert.equal(result.status, "ready");
+  const text = result.sections.map((section) => section.content).join("");
+  assert.match(text, /Answer: \*\*billing@example\.test\*\* \n/);
+  assert.doesNotMatch(text, /\*\*\*\*/);
+  assert.match(text, /\| No \| Answer \|\n\| --- \| --- \|\n\| 1 \| a\\\|b second line \|\n/);
+  assert.deepEqual(
+    result.sections.map((section) => section.heading),
+    [null, "Q1"],
+  );
+});
+
+test("DOCX style summary reads fonts, colors, shading, alignment, header, footer and page size", async () => {
+  const styles =
+    '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+    '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:asciiTheme="minorHAnsi"/><w:sz w:val="22"/></w:rPr></w:rPrDefault></w:docDefaults>' +
+    '<w:style w:type="paragraph" w:styleId="Title"><w:pPr><w:jc w:val="center"/></w:pPr><w:rPr><w:b/><w:color w:val="1F3864"/><w:sz w:val="32"/></w:rPr></w:style>' +
+    "</w:styles>";
+  const theme =
+    '<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:themeElements><a:fontScheme><a:majorFont><a:latin typeface="Calibri Light"/></a:majorFont><a:minorFont><a:latin typeface="Calibri"/></a:minorFont></a:fontScheme></a:themeElements></a:theme>';
+  const footer =
+    '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t xml:space="preserve">Halaman </w:t></w:r><w:fldSimple w:instr=" PAGE "><w:r><w:t>1</w:t></w:r></w:fldSimple></w:p>' +
+    '<w:p><w:r><w:t xml:space="preserve">Page </w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText> PAGE </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>7</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r><w:r><w:t xml:space="preserve"> of 3</w:t></w:r></w:p></w:ftr>';
+  const header =
+    '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Weekly CTF</w:t></w:r></w:p></w:hdr>';
+  const body =
+    `<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr>${run("Exhibit NET-02")}</w:p>` +
+    `<w:p><w:pPr><w:shd w:val="clear" w:fill="E7F1FB"/><w:jc w:val="both"/></w:pPr>${run("Q1. What host sent it?", "<w:b/>")}</w:p>` +
+    `<w:p><w:pPr><w:jc w:val="both"/></w:pPr>${run("Body text that explains how the answer was found in the capture.")}</w:p>` +
+    `<w:tbl><w:tr><w:tc><w:tcPr><w:shd w:val="clear" w:fill="D9D9D9"/></w:tcPr>${paragraph("No")}</w:tc></w:tr></w:tbl>` +
+    `<w:p>${run("x", '<w:rFonts w:ascii="Courier New"/><w:color w:val="auto"/>')}</w:p>` +
+    '<w:p><w:r><w:drawing/></w:r></w:p><w:p><mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><mc:Choice><w:r><w:drawing/></w:r></mc:Choice><mc:Fallback><w:r><w:pict/></w:r></mc:Fallback></mc:AlternateContent></w:p>' +
+    '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1800"/></w:sectPr>';
+  const result = validate(
+    await parseDocxDocument(
+      docx(body, {
+        "word/styles.xml": strToU8(styles),
+        "word/theme/theme1.xml": strToU8(theme),
+        "word/header1.xml": strToU8(header),
+        "word/footer1.xml": strToU8(footer),
+      }),
+    ),
+  );
+  assert.equal(result.status, "ready");
+  assert.equal(result.parserVersion, "docx-v2");
+  const style = result.style;
+  assert.ok(style);
+  assert.equal(style.source, "docx");
+  assert.deepEqual(style.page, {
+    widthPt: 595.3,
+    heightPt: 841.9,
+    marginsPt: { top: 72, right: 72, bottom: 72, left: 90 },
+  });
+  const body11 = style.textStyles[0];
+  assert.deepEqual(
+    { font: body11.font, sizePt: body11.sizePt, bold: body11.bold, alignment: body11.alignment },
+    { font: "Calibri", sizePt: 11, bold: false, alignment: "justify" },
+  );
+  const title = style.textStyles.find((text) => text.sample === "Exhibit NET-02");
+  assert.deepEqual(
+    { sizePt: title?.sizePt, bold: title?.bold, color: title?.color, alignment: title?.alignment },
+    { sizePt: 16, bold: true, color: "#1f3864", alignment: "center" },
+  );
+  assert.ok(style.textStyles.some((text) => text.font === "Courier New" && text.color === null));
+  assert.deepEqual(style.fills, [
+    { color: "#e7f1fb", count: 1, sample: "Q1. What host sent it?" },
+    { color: "#d9d9d9", count: 1, sample: "No" },
+  ]);
+  assert.equal(style.tables, 1);
+  assert.equal(style.images, 2);
+  assert.deepEqual(style.header, ["Weekly CTF"]);
+  assert.deepEqual(style.footer, ["Halaman {page}", "Page {page} of 3"]);
+});
+
+test("DOCX marks where each image sits in the text", async () => {
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=",
+    "base64",
+  );
+  const drawing =
+    '<w:r><w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><wp:docPr id="1" name="Picture 1" descr="Inbox header"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:blipFill><a:blip r:embed="rIdImage"/></pic:blipFill></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>';
+  const relationships =
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/></Relationships>';
+  const result = validate(
+    await parseDocxDocument(
+      docx(paragraph("Before") + `<w:p>${drawing}</w:p>` + paragraph("Caption under the screenshot"), {
+        "word/_rels/document.xml.rels": strToU8(relationships),
+        "word/media/image1.png": png,
+      }),
+    ),
+  );
+  assert.equal(result.status, "ready");
+  assert.match(result.sections[0].content, /Before\n\[Image 1: Inbox header\]\nCaption under the screenshot/);
+  assert.equal(result.style?.images, 1);
+});

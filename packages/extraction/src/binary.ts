@@ -27,4 +27,11 @@ export class TextBudget {
     }
     this.text += normalized;
   }
+
+  // Drops text appended after length, such as an empty bold marker
+  truncate(length: number): void {
+    const removed = this.text.slice(length);
+    this.characters -= [...removed].length;
+    this.text = this.text.slice(0, length);
+  }
 }
