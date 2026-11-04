@@ -1,9 +1,12 @@
+import { documentStyleSchema } from "@tame/contracts";
+import { sql } from "kysely";
 import type { CoreContext } from "./context.js";
 import { listCollections } from "./collections.js";
-import { listDocuments } from "./documents.js";
+import { findDocument, listDocuments } from "./documents.js";
 import { notFound, TameError } from "./errors.js";
 
 export const SECTIONS_PER_READ = 3;
+export const FILE_LINK_SECONDS = 600;
 
 export async function listExamples(context: CoreContext, ownerId: string, collectionId?: string) {
   if (!collectionId) {
@@ -23,7 +26,7 @@ export async function readExample(context: CoreContext, ownerId: string, documen
     .selectFrom("documents")
     .where("id", "=", documentId)
     .where("owner_id", "=", ownerId)
-    .select(["id", "name", "status"])
+    .select(["id", "name", "status", "style"])
     .executeTakeFirst();
   if (!document) throw notFound("Document");
   if (document.status !== "ready") {
@@ -39,10 +42,24 @@ export async function readExample(context: CoreContext, ownerId: string, documen
     .limit(SECTIONS_PER_READ + 1)
     .execute();
   const sections = rows.slice(0, SECTIONS_PER_READ);
+  // The style summary comes once, with the first sections
+  const style = after < 0 ? (documentStyleSchema.safeParse(document.style).data ?? null) : undefined;
   return {
-    document: { id: document.id, name: document.name },
+    document: { id: document.id, name: document.name, ...(style !== undefined ? { style } : {}) },
     sections,
     nextAfter: rows.length > SECTIONS_PER_READ ? (sections.at(-1)?.ordinal ?? null) : null,
+  };
+}
+
+export async function exampleFile(context: CoreContext, ownerId: string, documentId: string) {
+  const document = await findDocument(context, ownerId, documentId);
+  if (document.status === "uploading") {
+    throw new TameError("conflict", "This document has not finished uploading.");
+  }
+  return {
+    document: { id: document.id, name: document.name, mediaType: document.media_type },
+    url: await context.files.createDownloadUrl(document.storage_path, document.name, FILE_LINK_SECONDS),
+    expiresInSeconds: FILE_LINK_SECONDS,
   };
 }
 
@@ -60,7 +77,10 @@ export async function findMissingExcerpts(
       .where("d.id", "=", item.documentId)
       .where("d.owner_id", "=", ownerId)
       .where("d.status", "=", "ready")
-      .where(({ fn, val }) => fn("strpos", ["s.content", val(item.excerpt)]), ">", 0)
+      // Bold markers are added by extraction, so excerpts copied with or without them both match
+      .where(
+        sql<boolean>`(strpos(s.content, ${item.excerpt}) > 0 or strpos(replace(s.content, '**', ''), ${item.excerpt}) > 0)`,
+      )
       .select("s.ordinal")
       .executeTakeFirst();
     if (!match) missing.push(index);

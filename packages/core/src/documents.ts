@@ -1,5 +1,10 @@
-import { mediaTypeForName, uploadRequestSchema } from "@tame/contracts";
-import type { DocumentStatus, ExtractionResult, UploadRequest } from "@tame/contracts";
+import {
+  currentParserVersion,
+  documentStyleSchema,
+  mediaTypeForName,
+  uploadRequestSchema,
+} from "@tame/contracts";
+import type { DocumentStatus, DocumentStyle, ExtractionResult, UploadRequest } from "@tame/contracts";
 import type { CoreContext } from "./context.js";
 import { getCollection } from "./collections.js";
 import { notFound, TameError } from "./errors.js";
@@ -12,6 +17,8 @@ export type DocumentSummary = {
   sizeBytes: number;
   status: DocumentStatus;
   errorCode: string | null;
+  style: DocumentStyle | null;
+  outdated: boolean;
   createdAt: Date;
 };
 
@@ -23,6 +30,8 @@ const summaryColumns = [
   "size_bytes",
   "status",
   "error_code",
+  "parser_version",
+  "style",
   "created_at",
 ] as const;
 
@@ -34,8 +43,14 @@ type SummaryRow = {
   size_bytes: number;
   status: string;
   error_code: string | null;
+  parser_version: string | null;
+  style: unknown;
   created_at: Date;
 };
+
+// Ready documents read by an older parser miss newer details such as the style summary
+const isOutdated = (row: Pick<SummaryRow, "status" | "media_type" | "parser_version">) =>
+  row.status === "ready" && row.parser_version !== currentParserVersion(row.media_type);
 
 function toSummary(row: SummaryRow): DocumentSummary {
   return {
@@ -46,11 +61,13 @@ function toSummary(row: SummaryRow): DocumentSummary {
     sizeBytes: row.size_bytes,
     status: row.status as DocumentStatus,
     errorCode: row.error_code,
+    style: documentStyleSchema.safeParse(row.style).data ?? null,
+    outdated: isOutdated(row),
     createdAt: row.created_at,
   };
 }
 
-async function findDocument({ db }: CoreContext, ownerId: string, documentId: string) {
+export async function findDocument({ db }: CoreContext, ownerId: string, documentId: string) {
   const row = await db
     .selectFrom("documents")
     .where("id", "=", documentId)
@@ -110,7 +127,9 @@ export async function createUploadUrl(context: CoreContext, ownerId: string, doc
 // Runs after the browser finished uploading, and again when the user retries a failed extraction
 export async function extractUploadedDocument(context: CoreContext, ownerId: string, documentId: string) {
   const document = await findDocument(context, ownerId, documentId);
-  if (document.status !== "uploading" && document.status !== "failed") return toSummary(document);
+  if (document.status !== "uploading" && document.status !== "failed" && !isOutdated(document)) {
+    return toSummary(document);
+  }
 
   const bytes = await context.files.download(document.storage_path);
   if (!bytes) throw new TameError("not_found", "The uploaded file was not found. Upload it again.");
@@ -128,6 +147,8 @@ export async function extractUploadedDocument(context: CoreContext, ownerId: str
   } catch (error) {
     if (error instanceof Error && "code" in error && typeof error.code === "string") runError = error.code;
   }
+  // Rereading a ready document must not lose its text if the newer parser fails on it
+  if (document.status === "ready" && result?.status !== "ready") return toSummary(document);
   await saveExtraction(context, ownerId, documentId, result, runError);
   return toSummary(await findDocument(context, ownerId, documentId));
 }
@@ -174,6 +195,7 @@ async function saveExtraction(
         warnings: JSON.stringify(result?.warnings ?? []),
         content_hash: result?.contentHash ?? null,
         parser_version: result?.parserVersion ?? null,
+        style: result?.status === "ready" && result.style ? JSON.stringify(result.style) : null,
         extracted_at: new Date(),
       })
       .execute();

@@ -14,7 +14,8 @@
   ],
   "scripts": {
     "build": "tsc --build",
-    "typecheck": "tsc --noEmit --incremental false --composite false"
+    "typecheck": "tsc --noEmit --incremental false --composite false",
+    "samples:profile-a": "node samples/profile-a.mjs"
   },
   "dependencies": {
     "@tame/contracts": "workspace:*",

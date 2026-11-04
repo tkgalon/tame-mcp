@@ -19,6 +19,7 @@ supabase/.temp/
 
 # Local runtime data and logs
 .data/
+packages/extraction/samples/out/
 /uploads/
 *.log
 playwright-report/

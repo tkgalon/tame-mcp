@@ -9,7 +9,7 @@ import { deleteProfile } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-const TABS = ["overview", "structure", "rules", "evidence", "history"] as const;
+const TABS = ["overview", "structure", "rules", "evidence", "template", "history"] as const;
 type Tab = (typeof TABS)[number];
 
 const LABELS: Record<Tab, string> = {
@@ -17,6 +17,7 @@ const LABELS: Record<Tab, string> = {
   structure: "Structure",
   rules: "Rules",
   evidence: "Evidence",
+  template: "Template",
   history: "History",
 };
 
@@ -115,7 +116,6 @@ export default async function ProfilePage({
               ))}
             </ol>
           )}
-          {payload.output.template && <pre>{payload.output.template}</pre>}
         </section>
       )}
 
@@ -155,6 +155,25 @@ export default async function ProfilePage({
                 <figcaption>Supports {item.ruleId}</figcaption>
               </figure>
             ))
+          )}
+        </section>
+      )}
+
+      {tab === "template" && (
+        <section aria-label="Template">
+          {payload.output.template ? (
+            <>
+              <p>
+                Typst template your agent compiles the {payload.output.format.toUpperCase()} with.{" "}
+                <a href={`/profiles/${profileId}/template`}>Download template.typ</a>
+              </p>
+              <pre>{payload.output.template}</pre>
+            </>
+          ) : (
+            <p>
+              No template yet. Ask your agent to build one from your examples, for example &quot;use TAME to
+              build a template for {payload.name} from my examples&quot;.
+            </p>
           )}
         </section>
       )}

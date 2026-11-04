@@ -8,7 +8,7 @@ import {
   listDocuments,
   registerUpload,
 } from "./documents.js";
-import { listExamples, readExample } from "./examples.js";
+import { exampleFile, listExamples, readExample } from "./examples.js";
 import {
   deleteDraft,
   deleteProfile,
@@ -56,7 +56,7 @@ export function createCore(context: CoreContext) {
       extract: extractUploadedDocument,
       remove: deleteDocument,
     }),
-    examples: bind(context, { list: listExamples, read: readExample }),
+    examples: bind(context, { list: listExamples, read: readExample, file: exampleFile }),
     profiles: bind(context, {
       use: useProfile,
       draft: draftProfile,

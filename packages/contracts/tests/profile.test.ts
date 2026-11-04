@@ -66,6 +66,16 @@ describe("profilePayloadSchema", () => {
     expect(profilePayloadSchema.safeParse(validPayload({ evidence })).success).toBe(false);
   });
 
+  it("accepts a template only when it defines the doc function", () => {
+    const withDoc = { format: "pdf" as const, template: "// typst >= 0.13\n#let doc(body) = body\n" };
+    expect(profilePayloadSchema.safeParse(validPayload({ output: withDoc })).success).toBe(true);
+    const withoutDoc = { format: "pdf" as const, template: '#set text(font: "Arial")\n' };
+    const result = profilePayloadSchema.safeParse(validPayload({ output: withoutDoc }));
+    expect(result.error?.issues.map((issue) => issue.message)).toContain(
+      "A template must define doc, the function the whole document is wrapped in.",
+    );
+  });
+
   it("rejects profiles above the size limit", () => {
     const output = { format: "pdf" as const, template: "x".repeat(20_000) };
     const description = "y".repeat(2_000);

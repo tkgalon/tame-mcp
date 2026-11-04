@@ -3,7 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { TameError } from "@tame/core";
 import type { Core } from "@tame/core";
 import { describe, expect, it, vi } from "vitest";
-import { DRAFT_NEXT_STEP, SERVER_INSTRUCTIONS, createMcpServer } from "../mcp/server";
+import { DRAFT_NEXT_STEP, SERVER_INSTRUCTIONS, TEMPLATE_NEXT_STEP, createMcpServer } from "../mcp/server";
 
 const principal = {
   ownerId: "11111111-1111-4111-8111-111111111111",
@@ -61,6 +61,51 @@ describe("draft_profile", () => {
     expect(DRAFT_NEXT_STEP).toContain("Match the user's language and tone");
     expect(DRAFT_NEXT_STEP).toContain("asking for confirmation");
     expect(DRAFT_NEXT_STEP).toContain("still asks for changes is not approval");
+  });
+});
+
+describe("templates", () => {
+  const draft = vi.fn(async () => ({
+    draftId: "44444444-4444-4444-8444-444444444444",
+    profileId: null,
+    changes: null,
+    preview: "",
+  }));
+
+  it("asks for a compiled sample before approval when a draft sets a template", async () => {
+    const client = await connect({ profiles: { draft } as unknown as Core["profiles"] });
+    const output = { format: "pdf", template: "// typst >= 0.13\n#let doc(body) = body\n" };
+    const result = await client.callTool({
+      name: "draft_profile",
+      arguments: { payload: { ...payload, output }, preview: "" },
+    });
+    expect(result.structuredContent).toMatchObject({ nextStep: `${TEMPLATE_NEXT_STEP} ${DRAFT_NEXT_STEP}` });
+    expect(TEMPLATE_NEXT_STEP).toContain("Set up typst yourself");
+  });
+
+  it("keeps the plain review step for drafts without a template", async () => {
+    const client = await connect({ profiles: { draft } as unknown as Core["profiles"] });
+    const result = await client.callTool({ name: "draft_profile", arguments: { payload, preview: "" } });
+    expect(result.structuredContent).toMatchObject({ nextStep: DRAFT_NEXT_STEP });
+  });
+
+  it("gives the original example file through get_example_file", async () => {
+    const file = vi.fn(async () => ({
+      document: {
+        id: "55555555-5555-4555-8555-555555555555",
+        name: "Lab07.pdf",
+        mediaType: "application/pdf",
+      },
+      url: "https://storage.test/Lab07.pdf",
+      expiresInSeconds: 600,
+    }));
+    const client = await connect({ examples: { file } as unknown as Core["examples"] });
+    const result = await client.callTool({
+      name: "get_example_file",
+      arguments: { documentId: "55555555-5555-4555-8555-555555555555" },
+    });
+    expect(file).toHaveBeenCalledWith(principal.ownerId, "55555555-5555-4555-8555-555555555555");
+    expect(result.structuredContent).toMatchObject({ url: "https://storage.test/Lab07.pdf" });
   });
 });
 

@@ -1,21 +1,11 @@
 import { createHash } from "node:crypto";
+import { currentParserVersion } from "@tame/contracts";
 import type { ExtractionResult } from "@tame/contracts";
 
 const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 export function parserVersion(mediaType: string): string {
-  switch (mediaType) {
-    case "text/plain":
-      return "plain-text-v1";
-    case "text/markdown":
-      return "markdown-v1";
-    case "application/pdf":
-      return "pdf-v1";
-    case DOCX:
-      return "docx-v1";
-    default:
-      return "unsupported-v1";
-  }
+  return currentParserVersion(mediaType);
 }
 
 export async function parseDocument(bytes: Uint8Array, mediaType: string): Promise<ExtractionResult> {

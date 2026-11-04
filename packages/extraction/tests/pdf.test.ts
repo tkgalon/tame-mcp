@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "vitest";
-import { PDFDocument, StandardFonts, PDFName, PDFNumber, PDFHexString } from "pdf-lib";
+import { PDFDocument, StandardFonts, PDFName, PDFNumber, PDFHexString, rgb } from "pdf-lib";
 import { extractionResultSchema, MAX_DOCUMENT_BYTES } from "@tame/contracts";
 import { parsePdfDocument, MAX_PDF_PAGES } from "../src/pdf";
 
@@ -111,4 +111,63 @@ test("PDF encrypted documents require a password rather than being classified as
   ]);
   const result = validate(await parsePdfDocument(await document.save({ useObjectStreams: false })));
   assert.equal(result.errorCode, "password_required");
+});
+
+test("PDF style summary measures fonts, colors, boxes, lines, images and repeated header and footer", async () => {
+  const document = await PDFDocument.create();
+  const regular = await document.embedFont(StandardFonts.Helvetica);
+  const bold = await document.embedFont(StandardFonts.HelveticaBold);
+  const image = await document.embedPng(
+    Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  );
+  for (const number of [1, 2]) {
+    const page = document.addPage([595, 842]);
+    page.drawText("Weekly CTF Rani Pratama", { x: 60, y: 810, size: 9, font: regular });
+    const title = "Exhibit NET-02";
+    page.drawText(title, { x: (595 - bold.widthOfTextAtSize(title, 16)) / 2, y: 740, size: 16, font: bold });
+    page.drawRectangle({ x: 60, y: 700, width: 475, height: 30, color: rgb(0.906, 0.945, 0.984) });
+    page.drawText("Q1. Which host sent the file?", {
+      x: 70,
+      y: 710,
+      size: 11,
+      font: bold,
+      color: rgb(0.122, 0.22, 0.392),
+    });
+    for (const [index, line] of [
+      "Body text explains the step in a plain voice.",
+      "More body text.",
+    ].entries()) {
+      page.drawText(line, { x: 60, y: 660 - index * 16, size: 11, font: regular });
+    }
+    page.drawLine({ start: { x: 60, y: 600 }, end: { x: 535, y: 600 }, thickness: 1 });
+    page.drawImage(image, { x: 60, y: 350, width: 300, height: 200 });
+    page.drawText(`Halaman ${number}`, { x: 500, y: 30, size: 9, font: regular });
+  }
+  const result = validate(await parsePdfDocument(await document.save()));
+  assert.equal(result.status, "ready");
+  assert.equal(result.parserVersion, "pdf-v2");
+  const style = result.style;
+  assert.ok(style);
+  assert.deepEqual(style.page && { widthPt: style.page.widthPt, heightPt: style.page.heightPt }, {
+    widthPt: 595,
+    heightPt: 842,
+  });
+  const title = style.textStyles.find((text) => text.sample === "Exhibit NET-02");
+  assert.deepEqual(
+    { font: title?.font, sizePt: title?.sizePt, bold: title?.bold, alignment: title?.alignment },
+    { font: "Helvetica", sizePt: 16, bold: true, alignment: "center" },
+  );
+  const question = style.textStyles.find((text) => text.sample === "Q1. Which host sent the file?");
+  assert.equal(question?.color, "#1f3864");
+  assert.deepEqual(style.fills, [{ color: "#e7f1fb", count: 2, sample: "Q1. Which host sent the file?" }]);
+  assert.equal(style.tables, null);
+  assert.equal(style.images, 2);
+  assert.equal(style.rules, 2);
+  assert.deepEqual(style.header, ["Weekly CTF Rani Pratama"]);
+  assert.deepEqual(style.footer, ["Halaman {n}"]);
+  assert.equal(style.pagesMeasured, 2);
+  assert.ok(style.page?.marginsPt && style.page.marginsPt.left === 60);
 });

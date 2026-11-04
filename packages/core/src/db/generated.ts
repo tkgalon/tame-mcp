@@ -49,6 +49,7 @@ export interface Documents {
   size_bytes: number;
   status: Generated<string>;
   storage_path: string;
+  style: Json | null;
   warnings: Generated<Json>;
 }
 

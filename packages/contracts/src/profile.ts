@@ -4,6 +4,17 @@ export const PROFILE_SCHEMA_VERSION = 2;
 export const MAX_PROFILE_BYTES = 64 * 1024;
 export const MAX_TEMPLATE_CHARACTERS = 20_000;
 export const MAX_PREVIEW_CHARACTERS = 6_000;
+export const TEMPLATE_COMPONENTS = [
+  "doc",
+  "section",
+  "question",
+  "answer",
+  "cmd",
+  "shot",
+  "flag",
+  "table",
+] as const;
+const TEMPLATE_ENTRY = /#let\s+doc\s*\(/;
 
 const noNul = (value: string) => !value.includes("\0");
 const text = (limit: number) => z.string().trim().min(1).max(limit).refine(noNul);
@@ -46,7 +57,12 @@ export const profileOutputSchema = z.strictObject({
     .max(MAX_TEMPLATE_CHARACTERS)
     .refine(noNul)
     .nullable()
-    .describe("Typst source that fixes fonts, sizes and layout, or null"),
+    .refine((value) => value === null || TEMPLATE_ENTRY.test(value), {
+      message: "A template must define doc, the function the whole document is wrapped in.",
+    })
+    .describe(
+      "Typst source that fixes fonts, colors and layout, with a doc function and one function per repeated element, or null",
+    ),
 });
 
 export const profilePayloadSchema = z
