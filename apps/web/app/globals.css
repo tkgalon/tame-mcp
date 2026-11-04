@@ -226,3 +226,26 @@ td form {
 .dropzone.dragging {
   background: var(--surface);
 }
+
+.swatch {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--line);
+  vertical-align: middle;
+}
+.table-scroll {
+  margin-block: 0 1rem;
+  overflow-x: auto;
+}
+.table-scroll table {
+  margin: 0;
+}
+.style-summary {
+  padding-block: 0.5rem;
+  font-size: 0.875rem;
+}
+.style-summary caption {
+  text-align: left;
+  font-weight: 600;
+}

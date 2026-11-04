@@ -28,7 +28,10 @@ export function profileMarkdown({ versionNumber, payload }: Exported): string {
   return `${sections.filter(Boolean).join("\n\n")}\n`;
 }
 
-export function exportFilename({ payload, versionNumber }: Exported, extension: "json" | "md"): string {
+export function exportFilename(
+  { payload, versionNumber }: Exported,
+  extension: "json" | "md" | "typ",
+): string {
   const slug =
     payload.name
       .toLowerCase()
