@@ -15,16 +15,12 @@ export function AppNav() {
   const pathname = usePathname();
   const active = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
   return (
-    <nav aria-label="Main">
-      <ul className="tabs">
-        {TABS.map((tab) => (
-          <li key={tab.href}>
-            <Link href={tab.href} aria-current={active(tab.href) ? "page" : undefined}>
-              {tab.label}
-            </Link>
-          </li>
-        ))}
-      </ul>
+    <nav className="links glass" aria-label="Main">
+      {TABS.map((tab) => (
+        <Link key={tab.href} href={tab.href} aria-current={active(tab.href) ? "page" : undefined}>
+          {tab.label}
+        </Link>
+      ))}
     </nav>
   );
 }
