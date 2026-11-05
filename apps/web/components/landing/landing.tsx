@@ -10,7 +10,7 @@ export function Landing({ mcpUrl }: { mcpUrl: string }) {
   return (
     <div className="tl">
       <LandingNav />
-      <LandingHero />
+      <LandingHero mcpUrl={mcpUrl} />
       <LandingPipeline />
       <LandingExplorer />
       <LandingConnect mcpUrl={mcpUrl} />

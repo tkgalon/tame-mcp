@@ -1,5 +1,7 @@
+import { HeroCommand } from "./hero-command";
+
 // The hero loop: repeated documents, a cable into the TAME plug, the agent device, a new matching document
-export function LandingHero() {
+export function LandingHero({ mcpUrl }: { mcpUrl: string }) {
   return (
     <section className="wrap hero" id="top">
       <div className="scene">
@@ -216,9 +218,7 @@ export function LandingHero() {
         <a className="btn p" href="/login">
           Sign in
         </a>
-        <a className="btn" href="#how">
-          How it works
-        </a>
+        <HeroCommand mcpUrl={mcpUrl} />
       </div>
     </section>
   );
