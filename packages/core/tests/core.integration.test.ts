@@ -328,3 +328,9 @@ describe("connections", () => {
     expect(active).toBe(false);
   });
 });
+
+describe("health", () => {
+  it("answers a ping from the database", async () => {
+    await expect(core.health.ping()).resolves.toBeUndefined();
+  });
+});

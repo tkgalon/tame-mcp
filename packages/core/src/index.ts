@@ -9,6 +9,7 @@ import {
   registerUpload,
 } from "./documents.js";
 import { exampleFile, listExamples, readExample } from "./examples.js";
+import { pingDatabase } from "./health.js";
 import {
   deleteDraft,
   deleteProfile,
@@ -70,6 +71,7 @@ export function createCore(context: CoreContext) {
       removeDraft: deleteDraft,
     }),
     account: bind(context, { hasAccess, requireAccess, isSessionActive, removeFiles: removeAccountFiles }),
+    health: bind(context, { ping: pingDatabase }),
   };
 }
 
