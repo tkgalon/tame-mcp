@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { TameError } from "@tame/core";
-import { PROFILE_TABS } from "../../../../components/profile-tabs";
+import { PROFILE_TABS } from "../../../../lib/profile-tabs";
 import { getCore } from "../../../../lib/core";
 import { requireUser } from "../../../../lib/session";
 import { ProfileView } from "./view";

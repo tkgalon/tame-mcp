@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import type { ProfilePayload } from "@tame/contracts";
 import { ConfirmForm } from "../../../../components/confirm";
 import { ProfileTabs } from "../../../../components/profile-tabs";
-import type { ProfileTab } from "../../../../components/profile-tabs";
+import type { ProfileTab } from "../../../../lib/profile-tabs";
 import { Sig } from "../../../../components/sig";
 import { deleteProfile } from "../actions";
 
