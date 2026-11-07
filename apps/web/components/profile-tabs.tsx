@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import type { ReactNode } from "react";
-
-export const PROFILE_TABS = ["overview", "structure", "rules", "evidence", "template", "history"] as const;
-export type ProfileTab = (typeof PROFILE_TABS)[number];
+import { PROFILE_TABS, type ProfileTab } from "../lib/profile-tabs";
 
 const LABELS: Record<ProfileTab, string> = {
   overview: "Overview",
